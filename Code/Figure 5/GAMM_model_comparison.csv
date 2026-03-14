@@ -1,0 +1,6 @@
+"","model","formula","AIC","r.squ","total_edf"
+"1","gamm_1","~ s(day_of_year) + s(tl) + s(release_location) + AR1",8510.15,9.65,7.74
+"2","gamm_2","~ s(day_of_year) + tl + s(release_location) + AR1",8508.15,9.65,6.74
+"3","gamm_3","~ s(day_of_year) + tl + AR1",8506.15,9.65,6.74
+"4","gamm_4","~ s(day_of_year) + s(release_location) + AR1",8505.6,9.72,6.75
+"5","gamm_5","~ s(day_of_year) + AR1",8503.6,9.72,6.75

@@ -1,0 +1,13 @@
+"","model","formula","AIC","r.squ","total_edf"
+"1","gamm_1","~ s(day_of_year) + s(tl) + s(transmitter_id) + s(release_location) + AR1",8453.63,15.6,23.9
+"2","gamm_2","~ s(day_of_year) + s(tl) + s(transmitter_id) + s(release_location)",8836.1,17.12,33.01
+"3","gamm_3","~ s(day_of_year) + tl + s(transmitter_id) + s(release_location) + AR1",8451.64,15.6,22.9
+"4","gamm_4","~ s(day_of_year) + tl + s(transmitter_id) + s(release_location)",8834.1,17.12,32.01
+"5","gamm_5","~ s(day_of_year) + tl + s(transmitter_id) + AR1",8449.63,15.6,22.9
+"6","gamm_6","~ s(day_of_year) + tl + s(transmitter_id)",8832.1,17.12,32.01
+"7","gamm_7","~ s(day_of_year) + tl + AR1",8506.15,9.65,6.74
+"8","gamm_8","~ s(day_of_year) + tl",8742.56,9.79,7.42
+"9","gamm_9","~ s(day_of_year) + s(release_location) + AR1",8505.6,9.72,6.75
+"10","gamm_10","~ s(day_of_year) + s(release_location)",8742.14,9.87,7.43
+"11","gamm_11","~ s(day_of_year) + AR1",8503.6,9.72,6.75
+"12","gamm_12","~ s(day_of_year)",8740.14,9.87,7.43
