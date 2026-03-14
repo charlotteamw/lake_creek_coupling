@@ -1,24 +1,34 @@
-# Load required libraries
+# Code to create Figure 2 of Manuscript
+
+# Author(s): Charlotte Ward
+# Version: YYYY-MM-DD
+
+# Load Pkgs
 library(sf)
 library(terra)
 library(ggplot2)
 library(IsoriX)
-library(glatos)
 library(tidyverse)
 library(igraph)
 library(vegan)
 library(ggspatial)
+#Un-hash the below to download the glatos R package to remove false detections
+# library(remotes)
+# install.packages('glatos', repos = c('https://ocean-tracking-network.r-universe.dev', 'https://cloud.r-project.org'))
+library(glatos)
 
-# Load and transform shapefiles
-waterbodies <- st_read("//Lakes_Streams/WaterbodyPolygons.shp")
-watercourses <- st_read("//Lakes_Streams/WatercourseLines.shp")
+file_path <- getwd()
+
+# load data
+waterbodies <- st_read(file.path(file_path, "Data/Lakes_Streams/WaterbodyPolygons.shp"))
+watercourses <- st_read(file.path(file_path, "Data/Lakes_Streams/WatercourseLines.shp"))
 
 # Ensure CRS is consistent (WGS84)
 waterbodies <- st_transform(waterbodies, crs = 4326)
 watercourses <- st_transform(watercourses, crs = 4326)
 
 # Load receiver data
-metadata <- read_csv("//receivers.csv")
+metadata <- read_csv(file.path(file_path, "Data/receivers.csv"))
 
 # Convert receiver locations to sf object
 receiver_sf <- st_as_sf(
@@ -28,7 +38,7 @@ receiver_sf <- st_as_sf(
 )
 
 # Load detection data
-dets <- read_csv("//detections_clean_alldata.csv")
+dets <- read_csv(file.path(file_path, "Data/detections_clean_alldata.csv"))
 
 # Remove specified transmitters
 transmitters_to_remove <- c("34905", "32999", "42348")
@@ -91,7 +101,7 @@ edges <- full.network$moves %>%
   st_sf(crs = 4326)
 
 # Load and process the isoscape
-GNIPData <- read.csv("//baselines_coords_d13C.csv")
+GNIPData <- read.csv(file.path(file_path, "Data/baselines_coords_d13C.csv"))
 GNIPData$source_ID <- factor(paste("site", GNIPData$lat, GNIPData$long, GNIPData$elev, sep = "_"))
 
 GNIPData_agg <- prepsources(data = GNIPData,
@@ -142,52 +152,53 @@ masked_isoscape_df <- as.data.frame(masked_isoscape, xy = TRUE, na.rm = TRUE)
 raster_extent <- st_as_sf(as.polygons(ext(masked_isoscape), crs = st_crs(waterbodies)$wkt))
 cropped_waterbodies <- st_intersection(waterbodies, raster_extent)
 cropped_watercourses <- st_intersection(watercourses, raster_extent)
+
 # Define a new column for receiver size mapping (ensures correct legend)
 receiver_sf <- receiver_sf %>%
   mutate(size = scales::rescale(freq, to = c(0.5, 3)))  # Adjust min/max scaling
 
-# Final Plot: Isoscape + Network + Receiver Detection Frequencies
+# Figure 2: Isoscape + Network + Receiver Detection Frequencies
 ggplot() +
-  # Add the isoscape raster layer (properly masked)
   geom_raster(data = masked_isoscape_df, aes(x = x, y = y, fill = mean)) +
   scale_fill_gradientn(
     colors = c("#b34332", "#F06C57", "#eb8d7f", "#b6cedb","#5494b8","#2c6c91"),
     name = expression(δ^13*C)
   ) +
-  # Add waterbody boundaries
   geom_sf(data = cropped_waterbodies, fill = NA, size = 0.2) +
-  # Add receiver locations with correct size scaling
   geom_sf(
     data = receiver_sf,
     aes(size = size),
-    shape = 21,  # Hollow circle
+    shape = 21,  
     color = "black",
     fill = "white",
     alpha = 0.7,
     stroke = 1.5
   ) +
-  # Correct legend for receiver detections
   scale_size_continuous(
     name = "Receiver Detections",
-    range = c(0.5, 4),  # Ensures correct min/max size scaling
-    breaks = scales::rescale(c(0, 100, 500, 5000, 10000, 20000), to = c(0.5, 3)),  # Map real detection values
-    labels = c("0", "100", "500", "5000", "10000", "20000")  # Legend matches real detection counts
+    range = c(0.5, 4),  
+    breaks = scales::rescale(c(0, 100, 500, 5000, 10000, 20000), to = c(0.5, 3)),  
+    labels = c("0", "100", "500", "5000", "10000", "20000")  
   ) +
   annotation_scale(location = "bl", width_hint = 0.3, bar_units = "m", unit_category = "metric", height = unit(0.3, "cm")) +
   annotation_north_arrow(location = "br", style = north_arrow_minimal, height = unit(0.5, "cm"), width = unit(0.5, "cm")) +
   theme_minimal() +
   theme(
-    panel.grid = element_blank(),   # Remove gridlines
-    axis.ticks = element_blank(),  # Remove axis ticks
-    axis.text = element_text(size = 12),   # Increase axis text size
-    axis.title = element_text(size = 14, face = "bold"), # Increase axis label size
-    plot.title = element_text(size = 16, face = "bold", hjust = 0.5), # Centered, larger title
-    legend.title = element_text(size = 12), # Adjust legend title size
-    legend.text = element_text(size = 10),  # Adjust legend text size
-    aspect.ratio = 9/10  # Keeps proportions correct
+    panel.grid = element_blank(),  
+    axis.ticks = element_blank(), 
+    axis.text = element_text(size = 12),   
+    axis.title = element_text(size = 14, face = "bold"), 
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5), 
+    legend.title = element_text(size = 12), 
+    legend.text = element_text(size = 10),  
+    aspect.ratio = 9/10  
   ) +
-  # Add axis labels
   labs(
     x = "Longitude",
     y = "Latitude"
   )
+
+
+
+
+
