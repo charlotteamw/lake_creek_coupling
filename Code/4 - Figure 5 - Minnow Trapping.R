@@ -2,6 +2,10 @@ library(tidyverse)
 library(patchwork)
 library(grid) 
 
+file_path <- getwd()
+
+source(file.path(file_path, "/Code/0 - Functions.R"))
+
 ###### Minnow trap data
 
 mt_data <- read.csv("//minnowtrap_data.csv", header = TRUE) 

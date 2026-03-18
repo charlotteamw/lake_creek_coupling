@@ -180,7 +180,7 @@ ggplot() +
     breaks = scales::rescale(c(0, 100, 500, 5000, 10000, 20000), to = c(0.5, 3)),  
     labels = c("0", "100", "500", "5000", "10000", "20000")  
   ) +
-  annotation_scale(location = "bl", width_hint = 0.3, bar_units = "m", unit_category = "metric", height = unit(0.3, "cm")) +
+  annotation_scale(location = "bl", width_hint = 0.3, unit_category = "metric", height = unit(0.3, "cm")) +
   annotation_north_arrow(location = "br", style = north_arrow_minimal, height = unit(0.5, "cm"), width = unit(0.5, "cm")) +
   theme_minimal() +
   theme(
