@@ -1,0 +1,5 @@
+location,organism,n,d13C_mean,d13C_sd,d15N_mean,d15N_sd
+Creek,mayfly,25,-32.77,1.83,2.78,0.8
+Creek,mussel,21,-30.67,0.74,4.15,0.72
+Lake,mayfly,54,-25.33,2.7,1.29,0.83
+Lake,mussel,303,-28.03,1.66,0.97,0.78
