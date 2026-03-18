@@ -83,7 +83,7 @@ print_emm_pairs_tel <- function(model) {
 # =============================================================================
 
 isotope_data <- read.csv(
-  "//iso_metadata.csv",
+  "~/Documents/lake_creek_coupling/Data/iso_metadata.csv",
   header = TRUE
 )
 
@@ -397,7 +397,7 @@ for (seas in c("Spring", "Summer", "Fall")) {
 # PART 3: TELEMETRY DATA
 # =============================================================================
 
-detections_file <- "//detections_clean_alldata.csv"
+detections_file <- "~/Documents/lake_creek_coupling/Data/detections_clean_alldata.csv"
 dets <- read_csv(detections_file)
 transmitters_to_remove <- c("34905", "32999", "42348")
 recs_to_remove         <- c("R018", "R017", "R016")
@@ -448,10 +448,9 @@ window_check <- detections_filtered %>%
     .groups   = "drop"
   )
 
-invalid_id_times %>%
-  dplyr::select(id_time, tag_on, tag_off, first_det, last_det, step_dur) %>%
-  print(n = Inf)
-
+invalid_id_times <- window_check %>%
+  filter(is.na(tag_on) | is.na(tag_off) | tag_off <= tag_on |
+           last_det < tag_on | first_det > tag_off)
 
 if (nrow(invalid_id_times) > 0) {
   message("\n--- Dropping ", nrow(invalid_id_times),
@@ -466,13 +465,13 @@ detections_filtered <- detections_filtered %>%
                          filter(!id_time %in% invalid_id_times$id_time) %>%
                          pull(id_time)))
 
-create_time_series <- function(data, id_time_value) {
-  fish_data <- data %>% dplyr::filter(id_time == id_time_value)
+create_time_series <- function(data, id_time) {
+  fish_data <- data %>% filter(id_time == !!id_time)
   
   if (nrow(fish_data) == 0 ||
       is.na(fish_data$tag_on_date[1]) ||
       is.na(fish_data$tag_off_date[1])) {
-    warning(paste("Skipping id_time:", id_time_value, "due to missing or invalid dates"))
+    warning(paste("Skipping id_time:", id_time, "due to missing or invalid dates"))
     return(NULL)
   }
   
@@ -480,27 +479,27 @@ create_time_series <- function(data, id_time_value) {
   end_time   <- fish_data$tag_off_date[1] + hours(12)
   
   if (!is.finite(start_time) || !is.finite(end_time) || start_time > end_time) {
-    warning(paste("Skipping id_time:", id_time_value, "due to invalid time range"))
+    warning(paste("Skipping id_time:", id_time, "due to invalid time range"))
     return(NULL)
   }
   
   time_series <- tibble(
-    id_time          = id_time_value,
+    id_time          = id_time,
     date_time        = seq(from = start_time, to = end_time, by = "1 min"),
     release_location = fish_data$release_location[1]
   )
   
   detection_data <- fish_data %>%
-    dplyr::mutate(detection_minute = floor_date(detection_timestamp, "minute")) %>%
-    dplyr::select(detection_minute, location) %>%
-    dplyr::distinct(detection_minute, .keep_all = TRUE)
+    mutate(detection_minute = floor_date(detection_timestamp, "minute")) %>%
+    select(detection_minute, location) %>%
+    distinct(detection_minute, .keep_all = TRUE)
   
   time_series %>%
     left_join(detection_data, by = c("date_time" = "detection_minute")) %>%
     tidyr::fill(location, .direction = "down")
 }
 
-id_times <- unique(detections_filtered$id_time)
+id_times         <- unique(detections_filtered$id_time)
 time_series_list <- purrr::map(id_times, ~ create_time_series(detections_filtered, .x))
 names(time_series_list) <- id_times
 time_series_list <- time_series_list[!sapply(time_series_list, is.null)]
@@ -703,6 +702,8 @@ plot_shiner_carbon <- ggplot(
     override.aes = list(shape = 21, size = 3, color = "#323332", stroke = 0.6)
   ))
 
+plot_shiner_carbon
+
 # Plot B: Trophic position
 plot_shiner_tp <- ggplot(
   shiners_summary,
@@ -732,6 +733,7 @@ plot_shiner_tp <- ggplot(
     override.aes = list(shape = 21, size = 3, color = "#323332", stroke = 0.6)
   ))
 
+plot_shiner_tp
 # Plot C: Lake residency
 plot_residency <- ggplot(
   telemetry_summary,
@@ -799,6 +801,8 @@ left_iso <- ggarrange(
   plot_shiner_tp     + theme(legend.position = "none"),
   ncol = 1, nrow = 2, align = "v"
 )
+left_iso
+
 
 right_tel <- ggarrange(
   plot_residency  + theme(legend.position = "none"),
@@ -821,3 +825,71 @@ figure_3 <- ggarrange(top_row, legend_shared, ncol = 1, heights = c(10, 1))
 figure_3
 
 ggsave("figure_3.png", plot = figure_3, width = 8, height = 6.5, dpi = 600)
+
+
+
+# -----------------------------------------------------------------------------
+# Supplementary Table: Lake carbon & trophic position summary for shiners
+# -----------------------------------------------------------------------------
+shiner_table <- shiners_liver %>%
+  group_by(Season = month, Location = location) %>%
+  summarise(
+    n                  = n(),
+    `Mean Lake Carbon` = round(mean(lake_carbon,      na.rm = TRUE), 3),
+    `SE Lake Carbon`   = round(standard_error(lake_carbon), 3),
+    `Mean TP`          = round(mean(trophic_position, na.rm = TRUE), 3),
+    `SE TP`            = round(standard_error(trophic_position), 3),
+    .groups            = "drop"
+  ) %>%
+  mutate(
+    Location = stringr::str_to_title(as.character(Location)),
+    `Lake Carbon (mean ± SE)` = paste0(`Mean Lake Carbon`, " ± ", `SE Lake Carbon`),
+    `Trophic Position (mean ± SE)` = paste0(`Mean TP`, " ± ", `SE TP`)
+  ) %>%
+  select(
+    Season, Location, n,
+    `Lake Carbon (mean ± SE)`,
+    `Trophic Position (mean ± SE)`
+  ) %>%
+  arrange(Season, Location)
+
+print(shiner_table)
+
+write_csv(
+  shiner_table,
+  "~/Documents/lake_creek_coupling/Tables/shiner_lake_carbon_tp_summary.csv"
+)
+
+# -----------------------------------------------------------------------------
+# Supplementary Table: Lake residency & recurrence summary for telemetry fish
+# -----------------------------------------------------------------------------
+telemetry_table <- final_results %>%
+  group_by(Season, Location = release_location) %>%
+  summarise(
+    n                        = n(),
+    `Mean Lake Residency`    = round(mean(lake_residency, na.rm = TRUE), 3),
+    `SE Lake Residency`      = round(standard_error(lake_residency), 3),
+    `Mean Recurrence`        = round(mean(total_returns,  na.rm = TRUE), 2),
+    `SE Recurrence`          = round(standard_error(total_returns), 2),
+    .groups                  = "drop"
+  ) %>%
+  mutate(
+    Location = stringr::str_to_title(as.character(Location)),
+    `Lake Residency (mean ± SE)` = paste0(`Mean Lake Residency`, " ± ", `SE Lake Residency`),
+    `Recurrence (mean ± SE)`     = paste0(`Mean Recurrence`,     " ± ", `SE Recurrence`)
+  ) %>%
+  select(
+    Season, Location, n,
+    `Lake Residency (mean ± SE)`,
+    `Recurrence (mean ± SE)`
+  ) %>%
+  arrange(Season, Location)
+
+print(telemetry_table)
+
+write_csv(
+  telemetry_table,
+  "~/Documents/lake_creek_coupling/Tables/telemetry_residency_recurrence_summary.csv"
+)
+
+
