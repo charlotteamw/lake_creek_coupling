@@ -1,7 +1,7 @@
-# Code to create Figure 2 of Manuscript
+# Code to create Figure 3 of Manuscript - Comparing Seasonal Differences in Isotopes and Telemetry
 
 # Author(s): Charlotte Ward
-# Version: YYYY-MM-DD
+# Version: 2026-03-16
 
 ############################################################
 # FIGURE 3: Isotopes (left) + Telemetry (right)
@@ -377,8 +377,13 @@ window_check <- detections_filtered %>%
     .groups   = "drop"
   )
 
+
+invalid_id_times <- window_check %>%
+  filter(is.na(tag_on) | is.na(tag_off) | tag_off <= tag_on |
+           last_det < tag_on | first_det > tag_off)
+
 invalid_id_times %>%
-  dplyr::select(id_time, tag_on, tag_off, first_det, last_det, step_dur) %>%
+  dplyr::dplyr::select(id_time, tag_on, tag_off, first_det, last_det, step_dur) %>%
   print(n = Inf)
 
 
@@ -386,7 +391,7 @@ if (nrow(invalid_id_times) > 0) {
   message("\n--- Dropping ", nrow(invalid_id_times),
           " id_time(s) with invalid/mismatched windows ---")
   invalid_id_times %>%
-    select(id_time, tag_on, tag_off, first_det, last_det, step_dur) %>%
+    dplyr::select(id_time, tag_on, tag_off, first_det, last_det, step_dur) %>%
     print(n = Inf)
 }
 

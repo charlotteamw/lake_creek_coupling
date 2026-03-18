@@ -1,11 +1,20 @@
+# Supplementary Materials - Abaccus Plots
+
+# Author(s): Charlotte Ward
+# Version: 2026-03-16
+
 # ============================================================
-# Load libraries
+# Load Pkgs
 # ============================================================
 library(tidyverse)
 library(lubridate)
 library(purrr)
 library(glatos)
 library(dplyr)
+
+file_path <- getwd()
+
+source(file.path(file_path, "/Code/0 - Functions.R"))
 
 # ============================================================
 # Load data

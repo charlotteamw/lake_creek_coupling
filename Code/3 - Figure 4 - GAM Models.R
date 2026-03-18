@@ -1,4 +1,7 @@
+# Figure 4
 
+# Author(s): 
+# Version: YYYY-MM-DD
 
 ### Note - in Chapter 4.4.3 - states 6 candidate models. Here, we have 12, as all models were run with and without a correlation structure. The correlation structure must be included here to account for autocorrelation is residuals. 
 
@@ -15,7 +18,12 @@ library(lubridate)
 library(glmmTMB)
 library(DHARMa)
 
-detections_file <- "//detections_clean_alldata.csv"
+
+file_path <- getwd()
+
+source(file.path(file_path, "/Code/0 - Functions.R"))
+
+detections_file <- file.path(file_path, "Data/detections_clean_alldata.csv")
 dets <- read_csv(detections_file)
 
 # ------------------------------
