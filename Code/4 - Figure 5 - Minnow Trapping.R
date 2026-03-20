@@ -97,7 +97,7 @@ plot_shiner_mt <- ggplot(site_total_complete, aes(
     labels = c("Creek", "Lake")
   ) +
   xlab("Season") +
-  ylab("Log Habitat-Specific Biomass (g)") +
+  ylab("Log Biomass per Trap (g)") +
   coord_cartesian(clip = "off") +
   theme_bw() +
   theme(
@@ -157,59 +157,6 @@ directional_summary <- daily_biomass_shiner %>%
     .groups = "drop"
   )
 
-# Define consistent fill colors
-direction_colors <- c("downstream" = "#F06C57", "upstream" = "#eda195")
-
-
-plot_shiner_biomass <- ggplot(daily_biomass_shiner, aes(
-  x = season_order,
-  y = total_daily_biomass,
-  fill = direction,
-  group = interaction(season_order, direction)
-)) +
-  geom_boxplot(
-    aes(color = "#3d3d3d"),
-    position = position_dodge(width = 0.75),
-    width = 0.6,
-    alpha = 0.45,
-    size = 0.5,
-    outlier.shape = NA
-  ) +
-  geom_vline(
-    xintercept = c(1.5, 2.5),
-    linetype = "dashed",
-    color = "grey50",
-    linewidth = 0.5
-  ) +
-  scale_fill_manual(
-    values = direction_colors,
-    name = "Direction",
-    labels = c("downstream" = "Downstream", "upstream" = "Upstream")
-  ) +
-  scale_color_identity() +
-  scale_y_log10() +
-  xlab("Season") +
-  ylab("Total Daily Biomass (log scale)") +
-  coord_cartesian(clip = "off") +
-  theme_bw() +
-  theme(
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "#323332"),
-    legend.position = "right",
-    legend.text = element_text(size = 10),
-    legend.title = element_text(size = 10),
-    legend.key.size = unit(0.8, "cm"),
-    axis.title = element_text(size = 14),
-    axis.text = element_text(size = 12),
-    strip.text = element_text(size = 13, face = "bold"),
-    strip.background = element_blank(),
-    plot.margin = unit(c(0.3, 0.3, 1.2, 0.3), "cm"),
-    axis.title.x = element_text(vjust = -1.5),
-    panel.spacing = unit(1.5, "lines")
-  )
-
-plot_shiner_biomass
-
 
 # Prepare plotting data: reorder direction and set biomass values
 directional_summary_plot <- directional_summary %>%
@@ -257,7 +204,7 @@ plot_shiner_biomass_bar <- ggplot(directional_summary_plot, aes(
     values = direction_outline_colors,
     guide = "none"
   ) +
-  ylab("Daily Biomass Flux in Creek (g)") +
+  ylab("Daily Biomass Flux (g)") +
   xlab("Season") +
   theme_bw() +
   theme(
@@ -281,78 +228,6 @@ plot_shiner_biomass_bar <- ggplot(directional_summary_plot, aes(
 
 plot_shiner_biomass_bar
 
-library(scales)
-
-# Custom signed log transform
-signed_log10 <- function(x) {
-  sign(x) * log10(abs(x) + 1e-3)  # +0.001g for numerical stability
-}
-
-# Your exact same plot (ONLY y-scale changed)
-plot_shiner_biomass_bar_log<- ggplot(directional_summary_plot, aes(
-  x = season_order,
-  y = plot_biomass,
-  fill = direction
-)) +
-  geom_bar(
-    stat = "identity",
-    position = position_dodge(width = 0.6),
-    width = 0.6,
-    aes(color = direction),
-    alpha = 0.8
-  ) +
-  geom_errorbar(aes(
-    ymin = plot_biomass - plot_se,
-    ymax = plot_biomass + plot_se,
-    color = direction 
-  ),
-  position = position_dodge(width = 0.6),
-  width = 0.2,
-  alpha = 1.0,  
-  linewidth = 0.6  
-  )+
-  geom_hline(yintercept = 0, linetype = 1, color = "#3d3d3d", linewidth = 0.5) +
-  scale_fill_manual(
-    values = direction_colors,
-    name = "Direction",
-    labels = c("upstream" = "Upstream", "downstream" = "Downstream")
-  ) +
-  scale_color_manual(
-    values = direction_outline_colors,
-    guide = "none"
-  ) +
-  # REPLACED: scale_y_continuous() → signed log scale
-  scale_y_continuous(
-    trans = trans_new(
-      name = "signed_log10",
-      transform = signed_log10,
-      inverse = function(x) ifelse(x > 0, 10^x - 0.001, -(10^-x - 0.001))
-    ),
-    breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
-    labels = c("0.0001", "0.001", "0.01", "0.1", "1", "10", "100", "1000", "10000")
-  ) +
-  ylab("Daily Biomass Flux in Creek (signed log₁₀ scale)") +
-  xlab("Season") +
-  theme_bw() +
-  theme(
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "#3d3d3d"),
-    legend.position = "right",
-    legend.title = element_text(size = 12),
-    legend.text = element_text(size = 11),
-    axis.title = element_text(size = 14),
-    axis.title.x = element_text(size = 14),
-    axis.text.x = element_text(size = 14),
-    axis.text.y = element_text(size = 12)
-  )+
-  geom_vline(
-    xintercept = c(1.5, 2.5),
-    linetype = "dashed",
-    color = "grey50",
-    linewidth = 0.5
-  ) # Removed ylim() to let log scale determine range
-
-plot_shiner_biomass_bar_log
 
 # Remove x-axis from top plot
 plot_shiner_biomass_bar <- plot_shiner_biomass_bar +

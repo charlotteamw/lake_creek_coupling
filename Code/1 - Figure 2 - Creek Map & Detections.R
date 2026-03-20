@@ -39,6 +39,8 @@ receiver_sf <- st_as_sf(
   crs = 4326
 )
 
+receiver_sf
+
 # Load detection data
 dets <- read_csv(file.path(file_path, "Data/detections_clean_alldata.csv"))
 

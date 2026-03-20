@@ -1,7 +1,7 @@
-Season,Location,n,Lake Residency (mean Â± SE),Recurrence (mean Â± SE)
-Spring,Creek,12,0.665 Â± 0.107,11.33 Â± 8.24
-Spring,Lake,4,0.783 Â± 0.182,6.25 Â± 1.31
-Summer,Creek,21,0.611 Â± 0.104,1.14 Â± 0.4
-Summer,Lake,7,0.967 Â± 0.033,0.14 Â± 0.14
-Fall,Creek,11,0.69 Â± 0.081,8.82 Â± 2.37
-Fall,Lake,4,0.754 Â± 0.151,1.75 Â± 1.44
+Season,Location,n,Lake Residency (mean ± SE),Recurrence (mean ± SE)
+Spring,Creek,12,0.665 ± 0.107,11.33 ± 8.24
+Spring,Lake,4,0.783 ± 0.182,6.25 ± 1.31
+Summer,Creek,21,0.611 ± 0.104,1.14 ± 0.4
+Summer,Lake,7,0.967 ± 0.033,0.14 ± 0.14
+Fall,Creek,11,0.69 ± 0.081,8.82 ± 2.37
+Fall,Lake,4,0.754 ± 0.151,1.75 ± 1.44
