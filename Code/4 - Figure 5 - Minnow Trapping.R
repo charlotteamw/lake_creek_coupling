@@ -12,7 +12,7 @@ file_path <- getwd()
 
 source(file.path(file_path, "/Code/0 - Functions.R"))
 
-###### Minnow trap data #####
+###### Shiner CPUE Trap Data #####
 mt_data <- read.csv(file.path(file_path, "Data/minnowtrap_data.csv"), header = TRUE) 
 
 # Filter for shiners and clean
@@ -42,8 +42,7 @@ site_total <- shiner_mt_data %>%
   summarise(site_biomass = sum(wt, na.rm = TRUE), .groups = "drop")  # use lowercase `wt` here
 
 # Joinand complete
-site_total_complete <- site_grid %>%
-  left_join(site_total, by = c("Site", "Month", "Location")) %>%
+site_total_complete <- site_total %>%
   mutate(
     Month = factor(Month, levels = c("May", "August", "October")),
     season = factor(Month, labels = c("Spring", "Summer", "Fall")),
@@ -71,9 +70,8 @@ habitat_colors <- c("creek" = "#F06C57", "lake" = "#4A90B8")
 plot_shiner_mt <- ggplot(site_total_complete, aes(
   x = season,
   y = log(site_biomass + 0.01),
-  fill = Location,          # keep fill mapped
+  fill = Location,          
   group = interaction(season, Location)
-  # REMOVED: color = Location
 )) +
   geom_vline(
     xintercept = c(1.5, 2.5),
@@ -87,7 +85,7 @@ plot_shiner_mt <- ggplot(site_total_complete, aes(
     width = 0.6,
     alpha = 0.75,
     size = 0.5,
-    color = "#3d3d3d"         # ADD this for black outlines
+    color = "#3d3d3d"     
   ) +
   scale_fill_manual(
     values = habitat_colors,
@@ -101,7 +99,6 @@ plot_shiner_mt <- ggplot(site_total_complete, aes(
   ) +
   xlab("Season") +
   ylab("Log Biomass per Trap (g)") +
-  coord_cartesian(clip = "off") +
   theme_bw() +
   theme(
     panel.grid = element_blank(),
@@ -112,13 +109,12 @@ plot_shiner_mt <- ggplot(site_total_complete, aes(
     axis.title = element_text(size = 14),
     axis.text.x = element_text(size = 14),
     axis.text.y = element_text(size = 12)
-  )+
-  coord_cartesian(ylim = c(1.5, 7)) 
-
+  ) + 
+  coord_cartesian(clip = "off", ylim = c(1.5, 7)) 
 
 plot_shiner_mt
 
-#### directional trap data
+##### Directional Trap - Shiner Biomass #####
 trap_data <- read.csv(file.path(file_path, "Data/directional_traps_all.csv"), header = TRUE)
 
 shiner_data <- trap_data %>%
@@ -128,14 +124,14 @@ shiner_data <- shiner_data %>%
   mutate(
     season_order = factor(season, levels = c("spring", "summer", "fall")),
     wt = as.numeric(wt),
-    number = as.numeric(number)  
+    # number = as.numeric(number)  
   )
 
 daily_biomass_shiner <- shiner_data %>%
   group_by(season, day, direction) %>%
   summarize(
     total_daily_biomass = sum(wt, na.rm = TRUE),
-    total_daily_abundance = sum(number, na.rm = TRUE),
+    # total_daily_abundance = sum(number, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
@@ -151,8 +147,8 @@ directional_summary <- daily_biomass_shiner %>%
   summarise(
     avg_biomass = mean(total_daily_biomass, na.rm = TRUE),
     se_biomass = sd(total_daily_biomass, na.rm = TRUE) / sqrt(n()),
-    avg_abundance = mean(total_daily_abundance, na.rm = TRUE),
-    se_abundance = sd(total_daily_abundance, na.rm = TRUE) / sqrt(n()),
+    # avg_abundance = mean(total_daily_abundance, na.rm = TRUE),
+    # se_abundance = sd(total_daily_abundance, na.rm = TRUE) / sqrt(n()),
     .groups = "drop"
   )
 
@@ -263,15 +259,7 @@ combined_plot <-  plot_shiner_biomass_bar /
 
 combined_plot
 
-
-ggsave(
-  filename = "figure_5.png",
-  plot = combined_plot,
-  width = 7,
-  height = 7.5,
-  dpi = 600
-)
-
+ggsave(file.path(file_path, "Figures/Figure_5.jpg"), plot = combined_plot, width = 7, height = 7.5, dpi = 600)
 
 avg_mt_shiner <- site_total_complete %>%
   group_by(Month, Location) %>%

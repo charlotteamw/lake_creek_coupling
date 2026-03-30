@@ -1,11 +1,10 @@
 # Supplementary Materials - Abaccus Plots
 
-# Author(s): Charlotte Ward
+# Author(s): Charlotte Ward & Reilly O'Connor
 # Version: 2026-03-16
 
-# ============================================================
 # Load Pkgs
-# ============================================================
+
 library(tidyverse)
 library(lubridate)
 library(purrr)
@@ -16,17 +15,12 @@ file_path <- getwd()
 
 source(file.path(file_path, "/Code/0 - Functions.R"))
 
-# ============================================================
 # Load data
-# ============================================================
-detections_file <- "/Users/charlotteward/Documents/algonquin_minnow/Telemetry Data Processing/detections_clean_alldata.csv"
-dets <- read_csv(detections_file)
+dets <- read_csv(file.path(file_path, "Data/detections_clean_alldata.csv"))
 
 unique(dets$location)
 
-# ============================================================
-# Compute step timing, tagging dates, and convert to POSIXct
-# ============================================================
+##### Compute step timing, tagging dates, and convert to POSIXct #####
 dets <- dets %>%
   mutate(
     step_time  = case_when(
@@ -48,17 +42,13 @@ dets <- dets %>%
     tag_off_date        = as.POSIXct(tag_off_date, tz = "UTC")
   )
 
-# ============================================================
 # Apply false detection filter
-# ============================================================
 detections_filtered <- dets %>%
   false_detections(tf = 3600, show_plot = FALSE) %>%
   filter(passed_filter == 1)
 
-# ============================================================
 # Drop fish whose tag window doesn't overlap their detections
 # (catches: step3_dur = 0, wrong release_date year, etc.)
-# ============================================================
 window_check <- detections_filtered %>%
   group_by(id_time) %>%
   summarise(
@@ -74,9 +64,9 @@ invalid_id_times <- window_check %>%
   filter(
     is.na(tag_on)   |
       is.na(tag_off)  |
-      tag_off <= tag_on |          # zero-duration window
-      last_det  < tag_on  |        # all detections before window starts
-      first_det > tag_off          # all detections after window ends
+      tag_off <= tag_on |          
+      last_det  < tag_on  |        
+      first_det > tag_off          
   )
 
 if (nrow(invalid_id_times) > 0) {
@@ -93,50 +83,9 @@ valid_id_times <- window_check %>%
 detections_filtered <- detections_filtered %>%
   filter(id_time %in% valid_id_times)
 
-# ============================================================
-# Define create_time_series() BEFORE calling it
-# ============================================================
-create_time_series <- function(data, id_time) {
-  fish_data <- data %>% filter(id_time == !!id_time)
-  
-  if (nrow(fish_data) == 0 || is.na(fish_data$tag_on_date[1]) || is.na(fish_data$tag_off_date[1])) {
-    warning(paste("Skipping id_time:", id_time, "due to missing or invalid dates"))
-    return(NULL)
-  }
-  
-  start_time <- fish_data$tag_on_date[1] + hours(12)
-  end_time   <- fish_data$tag_off_date[1] + hours(12)
-  
-  if (!is.finite(start_time) || !is.finite(end_time) || start_time > end_time) {
-    warning(paste("Skipping id_time:", id_time, "due to invalid time range"))
-    return(NULL)
-  }
-  
-  release_loc <- fish_data$release_location[1]
-  
-  time_series <- tibble(
-    id_time          = id_time,
-    date_time        = seq(from = start_time, to = end_time, by = "1 min"),
-    release_location = release_loc
-  )
-  
-  detection_data <- fish_data %>%
-    dplyr::mutate(detection_minute = floor_date(detection_timestamp, "minute")) %>%
-    dplyr::select(detection_minute, location) %>%
-    dplyr::distinct(detection_minute, .keep_all = TRUE)
-  
-  enriched_series <- time_series %>%
-    left_join(detection_data, by = c("date_time" = "detection_minute")) %>%
-    fill(location, .direction = "down")
-  
-  return(enriched_series)
-}
-
-# ============================================================
-# Generate enriched time series from detections_filtered
-# ============================================================
+##### Generate enriched time series from detections_filtered ######
 id_times <- unique(detections_filtered$id_time)
-time_series_list <- map(id_times, ~ create_time_series(detections_filtered, .x))
+time_series_list <- map(id_times, ~ enriched_time_series(detections_filtered, .x))
 names(time_series_list) <- id_times
 time_series_list <- time_series_list[!sapply(time_series_list, is.null)]
 
@@ -150,9 +99,8 @@ time_series_all <- bind_rows(time_series_list) %>%
   filter(date_time >= min(date_time, na.rm = TRUE)) %>%
   ungroup()
 
-# ============================================================
-# Season assignment
-# ============================================================
+
+#Assign Seasons...
 time_series_all <- time_series_all %>%
   mutate(
     Season = case_when(
@@ -164,9 +112,8 @@ time_series_all <- time_series_all %>%
     )
   )
 
-# ============================================================
-# === Abacus plot: all tags, RAW detections ===
-# ============================================================
+###### Abacus plot, raw detections - all tags #####
+
 creek_blue      <- "#3A74B4"
 lake_orange     <- "#D1775E"
 transition_grey <- "#C8C8C8"
@@ -220,9 +167,7 @@ p_abacus <- ggplot(dets_abacus, aes(x = detection_time, y = transmitter_id, colo
 
 dev.new(); print(p_abacus)
 
-# ============================================================
-# === Per-transmitter abacus plots: raw detections by receiver ===
-# ============================================================
+###### Per-transmitter abacus plots: raw detections by receiver #####
 all_receivers <- paste0("R", sprintf("%03d", 1:30))
 
 dets_receiver <- detections_filtered %>%
@@ -244,7 +189,7 @@ tx_ids   <- unique(as.character(dets_receiver$transmitter_id))
 x_min_rx <- min(dets_receiver$detection_time, na.rm = TRUE)
 x_max_rx <- max(dets_receiver$detection_time, na.rm = TRUE)
 
-out_dir <- "/Users/charlotteward/Documents/algonquin_minnow/Telemetry Data Processing/receiver_abacus_plots"
+out_dir <- file.path(file_path, "Figures/Telemetry Data Processing/receiver_abacus_plots")
 if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
 walk(tx_ids, function(tid) {
@@ -292,10 +237,9 @@ walk(tx_ids, function(tid) {
   )
 })
 
-# ============================================================
-# === Abacus plots for ENRICHED time series (time_series_all) ===
-# ============================================================
-out_dir_enriched <- "/Users/charlotteward/Documents/algonquin_minnow/Telemetry Data Processing/enriched_abacus_plots"
+
+##### Abacus plots for ENRICHED time series (time_series_all) #####
+out_dir_enriched <- file.path(file_path, "Figures/Telemetry Data Processing/enriched_abacus_plots")
 if (!dir.exists(out_dir_enriched)) dir.create(out_dir_enriched, recursive = TRUE)
 
 ts_abacus <- time_series_all %>%

@@ -114,3 +114,42 @@ create_time_series <- function(data, id_time_value) {
     left_join(detection_data, by = c("date_time" = "detection_minute")) %>%
     tidyr::fill(location, .direction = "down")
 }
+
+
+
+enriched_time_series <- function(data, id_time) {
+  fish_data <- data %>% filter(id_time == !!id_time)
+  
+  if (nrow(fish_data) == 0 || is.na(fish_data$tag_on_date[1]) || is.na(fish_data$tag_off_date[1])) {
+    warning(paste("Skipping id_time:", id_time, "due to missing or invalid dates"))
+    return(NULL)
+  }
+  
+  start_time <- fish_data$tag_on_date[1] + hours(12)
+  end_time   <- fish_data$tag_off_date[1] + hours(12)
+  
+  if (!is.finite(start_time) || !is.finite(end_time) || start_time > end_time) {
+    warning(paste("Skipping id_time:", id_time, "due to invalid time range"))
+    return(NULL)
+  }
+  
+  release_loc <- fish_data$release_location[1]
+  
+  time_series <- tibble(
+    id_time          = id_time,
+    date_time        = seq(from = start_time, to = end_time, by = "1 min"),
+    release_location = release_loc
+  )
+  
+  detection_data <- fish_data %>%
+    dplyr::mutate(detection_minute = floor_date(detection_timestamp, "minute")) %>%
+    dplyr::select(detection_minute, location) %>%
+    dplyr::distinct(detection_minute, .keep_all = TRUE)
+  
+  enriched_series <- time_series %>%
+    left_join(detection_data, by = c("date_time" = "detection_minute")) %>%
+    fill(location, .direction = "down")
+  
+  return(enriched_series)
+}
+
