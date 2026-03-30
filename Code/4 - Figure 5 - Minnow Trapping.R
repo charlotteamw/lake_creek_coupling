@@ -1,14 +1,19 @@
+# Figure 5 - Minnow Trapping data
+
+# Author(s): Charlotte Ward & Reilly O'Connor
+# Version: 2026-03-30
+
+# Load Pkgs
 library(tidyverse)
 library(patchwork)
-library(grid) 
+library(grid)
 
 file_path <- getwd()
 
 source(file.path(file_path, "/Code/0 - Functions.R"))
 
-###### Minnow trap data
-
-mt_data <- read.csv("//minnowtrap_data.csv", header = TRUE) 
+###### Minnow trap data #####
+mt_data <- read.csv(file.path(file_path, "Data/minnowtrap_data.csv"), header = TRUE) 
 
 # Filter for shiners and clean
 shiner_mt_data <- mt_data %>%
@@ -60,9 +65,7 @@ avg_mt_shiner <- site_total_complete %>%
     Location = tolower(Location)
   )
 
-
-
-# Custom colors
+#Custom colors
 habitat_colors <- c("creek" = "#F06C57", "lake" = "#4A90B8")
 
 plot_shiner_mt <- ggplot(site_total_complete, aes(
@@ -115,15 +118,11 @@ plot_shiner_mt <- ggplot(site_total_complete, aes(
 
 plot_shiner_mt
 
-
-
-
 #### directional trap data
-trap_data <- read.csv("//directional_traps_all.csv", header = TRUE)
+trap_data <- read.csv(file.path(file_path, "Data/directional_traps_all.csv"), header = TRUE)
 
 shiner_data <- trap_data %>%
   filter(species %in% c("golden shiner", "common shiner"))
-
 
 shiner_data <- shiner_data %>%
   mutate(
