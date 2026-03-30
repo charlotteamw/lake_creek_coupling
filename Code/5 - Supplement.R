@@ -290,6 +290,7 @@ p_abacus_enriched <- ggplot(ts_abacus, aes(x = date_time, y = id_time, color = p
   )
 
 dev.new(); print(p_abacus_enriched)
+
 ggsave(
   file.path(out_dir_enriched, "abacus_enriched_all_tags.png"),
   plot = p_abacus_enriched, width = 14, height = 8, dpi = 200
