@@ -3,7 +3,6 @@
 # Author(s): Charlotte Ward & Reilly O'Connor
 # Version: 2026-03-16
 
-
 # Load packages
 library(tidyverse)
 library(lubridate)
@@ -120,9 +119,12 @@ glm_d13C_mf <- glm(
 )
 
 car::Anova(glm_d13C_mf, type = 3)
-#no interaction, location differences only...
 
-print_emm_pairs_iso(glm_d13C_mf, "d13C_kilj")
+emmeans(glm_d13C_mf, ~ month * location, type = "response")
+
+pairs(emmeans(glm_d13C_mf, ~ month | location, type = "response"), adjust = "tukey")
+
+pairs(emmeans(glm_d13C_mf, ~ location | month, type = "response"), adjust = "tukey")
 
 glm_d15N_mf <- glm(
   d15N ~ month * location,
@@ -132,7 +134,12 @@ glm_d15N_mf <- glm(
 
 car::Anova(glm_d15N_mf, type = 3)
 
-print_emm_pairs_iso(glm_d15N, "d15N")
+emmeans(glm_d15N_mf, ~ month * location)
+
+pairs(emmeans(glm_d15N_mf, ~ month | location), adjust = "tukey")
+
+pairs(emmeans(glm_d15N_mf, ~ location | month), adjust = "tukey")
+
 
 ##### Mussel C13 N15 Models #####
 baseline_data_muss <- baseline_data %>% filter(organism == "mussel")
@@ -144,7 +151,11 @@ glm_d13C_muss <- glm(
 )
 
 car::Anova(glm_d13C_muss, type = 3)
-print_emm_pairs_iso(glm_d13C_muss, "d13C_kilj")
+
+glm_d13C_muss <- update(glm_d13C_muss, . ~ . - month:location)
+
+pairs(emmeans(glm_d13C_muss, ~ month),    adjust = "tukey")  
+pairs(emmeans(glm_d13C_muss, ~ location), adjust = "tukey")
 
 glm_d15N_muss <- glm(
   d15N ~ month * location,
@@ -154,8 +165,10 @@ glm_d15N_muss <- glm(
 
 car::Anova(glm_d15N_muss, type = 3)
 
-print_emm_pairs_iso(glm_d15N_muss, "d15N")
+glm_d15N_muss <- update(glm_d15N_muss, . ~ . - month:location)
 
+pairs(emmeans(glm_d15N_muss, ~ month),    adjust = "tukey")  
+pairs(emmeans(glm_d15N_muss, ~ location), adjust = "tukey")
 
 
 ##### Golden Shiner & Common Shiner (Shiner) Data set up #####
@@ -198,7 +211,11 @@ glm_d13C_shnr <- glm(
 )
 
 car::Anova(glm_d13C_shnr, type = 3)
-print_emm_pairs_iso(glm_d13C_shnr, "d13C_kilj")
+
+emmeans(glm_d13C_shnr, ~ month * location, type = "response")
+pairs(emmeans(glm_d13C_shnr, ~ month | location, type = "response"), adjust = "tukey")
+pairs(emmeans(glm_d13C_shnr, ~ location | month, type = "response"), adjust = "tukey")
+
 
 glm_d15N_shnr <- glm(
   d15N ~ month * location,
@@ -207,7 +224,11 @@ glm_d15N_shnr <- glm(
 )
 
 car::Anova(glm_d15N_shnr, type = 3)
-print_emm_pairs_iso(glm_d15N_shnr, "d15N")
+
+emmeans(glm_d15N_shnr, ~ month * location, type = "response")
+pairs(emmeans(glm_d15N_shnr, ~ month | location, type = "response"), adjust = "tukey")
+pairs(emmeans(glm_d15N_shnr, ~ location | month, type = "response"), adjust = "tukey")
+
 
 ##### Shiner Prop Lake Carbon & TP Models #####
 #use glmTMB for lake_carbon as proportion (0, 1)
@@ -218,10 +239,14 @@ glmb_carbon_shnr <- glmmTMB(
 )
 
 car::Anova(glmb_carbon_shnr, type = 3)
-print_emm_pairs_iso(glmb_carbon_shnr, "lake_carbon")
+
+emmeans(glmb_carbon_shnr, ~ month * location, type = "response")
+pairs(emmeans(glmb_carbon_shnr, ~ month | location, type = "response"), adjust = "tukey")
+pairs(emmeans(glmb_carbon_shnr, ~ location | month, type = "response"), adjust = "tukey")
+
 
 sim_carb <- simulateResiduals(glmb_carbon_shnr)
-plot(sim_carb) 
+plot(sim_carb)
 testOutliers(sim_carb, type = "bootstrap", nBoot = 1000)
 
 glm_tp_shnr <- glm(
@@ -231,7 +256,11 @@ glm_tp_shnr <- glm(
 )
 
 car::Anova(glm_tp_shnr, type = 3)
-print_emm_pairs_iso(glm_tp_shnr, "trophic_position")
+
+emmeans(glm_tp_shnr, ~ month * location, type = "response")
+pairs(emmeans(glm_tp_shnr, ~ month | location, type = "response"), adjust = "tukey")
+pairs(emmeans(glm_tp_shnr, ~ location | month, type = "response"), adjust = "tukey")
+
 
 sim_tp <- simulateResiduals(glm_tp_shnr)
 plot(sim_tp) 
@@ -506,10 +535,11 @@ glm_residency <- glmmTMB(
   family = beta_family(link = "logit")
 )
 
-summary(glm_residency)
 car::Anova(glm_residency, type = 3)
-# print_emm_pairs_tel(glm_residency)
+glm_residency <- update(glm_residency, . ~ . - Season:release_location)
+car::Anova(glm_residency, type = 2)
 
+# print_emm_pairs_tel(glm_residency)
 sim_residency <- simulateResiduals(glm_residency)
 plot(sim_residency) 
 
@@ -520,9 +550,9 @@ glm_recurrence <- glmmTMB(
   family = nbinom2(link = "log")
 )
 
-summary(glm_recurrence)
 car::Anova(glm_recurrence, type = 3)
-print_emm_pairs_tel(glm_recurrence)
+glm_recurrence <- update(glm_recurrence, . ~ . - Season:release_location)
+car::Anova(glm_recurrence, type = 2)
 
 sim_recurrence <- simulateResiduals(glm_recurrence)
 plot(sim_recurrence) 
@@ -535,7 +565,7 @@ emm_carbon <- emmeans(glmb_carbon_shnr, ~ month * location, type = "response") %
   mutate(lo = pmax(0, est - SE), hi = pmin(1, est + SE))
 
 #3B - Trophic position
-emm_tp <- emmeans(glm_tp, ~ month * location, type = "response") %>%
+emm_tp <- emmeans(glm_tp_shnr, ~ month * location, type = "response") %>%
   as.data.frame() %>%
   rename(est = emmean) %>%
   mutate(lo = est - SE, hi = est + SE)
@@ -687,4 +717,4 @@ top_row <- ggarrange(left_iso, right_tel, ncol = 2)
 figure_3 <- ggarrange(top_row, legend_shared, ncol = 1, heights = c(10, 1))
 figure_3
 
-# ggsave(file.path(file_path, "Figures/figure_3.jpg"), plot = figure_3, width = 8, height = 6.5, dpi = 600)
+ggsave(file.path(file_path, "Figures/figure_3.jpg"), plot = figure_3, width = 8, height = 6.5, dpi = 600)

@@ -1,7 +1,7 @@
-# Code to create Figure 2 of Manuscript
+# Generate Map and 
 
 # Author(s): Charlotte Ward
-# Version: YYYY-MM-DD
+# Version: 2026-03-15
 
 # Load Pkgs
 library(sf)

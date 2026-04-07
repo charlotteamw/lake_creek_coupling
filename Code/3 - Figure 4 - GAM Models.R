@@ -1,7 +1,7 @@
 # Generalized Additive Models - Shiner Telemetry
 
 # Author(s): Charlotte Ward & Reilly O'Connor
-# Version: YYYY-MM-DD
+# Version: 2026-03-18
 
 ### Note - all models were run with and without a correlation structure to test whether accounting for autocorrelation is residuals is required... 
 
