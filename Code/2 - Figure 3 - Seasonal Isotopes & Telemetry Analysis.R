@@ -23,18 +23,18 @@ source(file.path(file_path, "/Code/0 - Functions.R"))
 options(contrasts = c("contr.sum", "contr.poly"))
 
 ##### Set plot themes & Colours #####
-custom_theme <- theme_minimal() +
+custom_theme <- 
+  theme_bw() +
   theme(
-    axis.text.y   = element_text(size = 12),
-    axis.text.x   = element_text(size = 12),
-    axis.title    = element_text(size = 13),
-    plot.title    = element_text(size = 14, face = "bold"),
-    axis.line     = element_line(color = "black"),
-    legend.title  = element_text(size = 12),
-    legend.text   = element_text(size = 12),
-    panel.spacing = unit(1.5, "lines"),
-    axis.ticks.x  = element_blank()
-  )
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    legend.position = "right",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11),
+    axis.title = element_text(size = 14),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 12)
+  ) 
 
 
 fill_scheme <- c("creek" = "#F06C57", "lake" = "#4A90B8")
@@ -202,7 +202,8 @@ shiners_raw <- isotope_data %>%
       levels = c("may", "august", "october"),
       labels = c("Spring", "Summer", "Fall")
     )
-  )
+  ) #%>% 
+  # filter(tl >= 138)
 
 glm_d13C_shnr <- glm(
   d13C_kilj ~ month * location,
@@ -588,14 +589,15 @@ plot_shiner_carbon <- ggplot(
   emm_carbon,
   aes(x = month, y = est, group = location)
 ) +
-  geom_line(linewidth = 0.6, alpha = 0.4, color = "#323332") +
   geom_errorbar(
     aes(ymin = lo, ymax = hi),
-    width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7
+    width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7,
+    position = position_dodge(width = 0.4)
   ) +
   geom_point(
     aes(fill = location),
-    size = 3, shape = 21, color = "#323332", stroke = 0.6
+    size = 3.5, shape = 21, color = "#323332", stroke = 0.6,
+    position = position_dodge(width = 0.4)
   ) +
   scale_fill_manual(
     name = "Location",
@@ -615,14 +617,15 @@ plot_shiner_tp <- ggplot(
   emm_tp,
   aes(x = month, y = est, group = location)
 ) +
-  geom_line(linewidth = 0.6, alpha = 0.4, color = "#323332") +
   geom_errorbar(
     aes(ymin = lo, ymax = hi),
-    width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7
+    width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7,
+    position = position_dodge(width = 0.4)
   ) +
   geom_point(
     aes(fill = location),
-    size = 3, shape = 21, color = "#323332", stroke = 0.6
+    size = 3.5, shape = 21, color = "#323332", stroke = 0.6,
+    position = position_dodge(width = 0.4)
   ) +
   scale_fill_manual(
     name = "Location",
@@ -642,14 +645,15 @@ plot_residency <- ggplot(
   emm_residency,
   aes(x = Season, y = est, group = release_location)
 ) +
-  geom_line(linewidth = 0.6, alpha = 0.4, color = "#323332") +
   geom_errorbar(
     aes(ymin = lo, ymax = hi),
-    width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7
+    width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7,
+    position = position_dodge(width = 0.4)
   ) +
   geom_point(
     aes(fill = release_location),
-    size = 3, shape = 21, color = "#323332", stroke = 0.6
+    size = 3.5, shape = 21, color = "#323332", stroke = 0.6,
+    position = position_dodge(width = 0.4)
   ) +
   scale_fill_manual(
     name = "Location",
@@ -669,14 +673,15 @@ plot_recurrence <- ggplot(
   emm_recurrence,
   aes(x = Season, y = est, group = release_location)
 ) +
-  geom_line(linewidth = 0.6, alpha = 0.4, color = "#323332") +
   geom_errorbar(
     aes(ymin = lo, ymax = hi),
-    width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7
+    width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7,
+    position = position_dodge(width = 0.4)
   ) +
   geom_point(
     aes(fill = release_location),
-    size = 3, shape = 21, color = "#323332", stroke = 0.6
+    size = 3.5, shape = 21, color = "#323332", stroke = 0.6,
+    position = position_dodge(width = 0.4)
   ) +
   scale_fill_manual(
     name = "Location",
