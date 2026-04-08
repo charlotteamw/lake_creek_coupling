@@ -1,9 +1,9 @@
-# Figure 4
+# Generalized Additive Models - Shiner Telemetry
 
-# Author(s): 
-# Version: YYYY-MM-DD
+# Author(s): Charlotte Ward & Reilly O'Connor
+# Version: 2026-03-18
 
-### Note - in Chapter 4.4.3 - states 6 candidate models. Here, we have 12, as all models were run with and without a correlation structure. The correlation structure must be included here to account for autocorrelation is residuals. 
+### Note - all models were run with and without a correlation structure to test whether accounting for autocorrelation is residuals is required... 
 
 # Load libraries
 library(sf)
@@ -12,23 +12,22 @@ library(tidyverse)
 library(igraph)
 library(vegan)
 library(mgcv)
+library(gratia)
 library(car)
 library(circlize)
 library(lubridate)
 library(glmmTMB)
 library(DHARMa)
-
+library(bbmle)
 
 file_path <- getwd()
 
 source(file.path(file_path, "/Code/0 - Functions.R"))
 
+##### Load and Clean Data #####
 detections_file <- file.path(file_path, "Data/detections_clean_alldata.csv")
 dets <- read_csv(detections_file)
 
-# ------------------------------
-# Filter transmitters/receivers
-# ------------------------------
 transmitters_to_remove <- c("34905", "32999", "42348")
 recs_to_remove         <- c("R018", "R017", "R016")
 
@@ -95,10 +94,7 @@ detections_filtered <- detections_filtered %>%
                          filter(!id_time %in% invalid_id_times$id_time) %>%
                          pull(id_time)))
 
-# ===============================
-# Movement variables
-# ===============================
-
+##### Calculate Movement Variables #####
 daily_movements <- detections_filtered %>%
   group_by(transmitter_id, detection_date, release_location, tl) %>%
   summarise(unique_locations = n_distinct(location), .groups = "drop") %>%
@@ -108,7 +104,7 @@ daily_movements <- detections_filtered %>%
     day_of_year = yday(date)
   )
 
-# Active tag sequence
+#Active tag sequence
 daily_movements <- daily_movements %>%
   left_join(
     detections_filtered %>%
@@ -128,188 +124,152 @@ daily_movements <- daily_movements %>%
     release_location = as.factor(release_location)
   )
 
+str(daily_movements)
 
-###### Models ######
+###### GAM Models ######
+#Test incorporation of autocorrelation term and random effects for individuals
+gamm_0 <- gamm(
+  multiple_locations ~ s(day_of_year, bs = "cc") + s(tl) + release_location,
+  family = binomial(link = "logit"),
+  data = daily_movements,
+  method = "ML")
 
 gamm_1 <- gamm(
-  multiple_locations ~ s(day_of_year, bs = "cc") + s(tl) + s(release_location, bs= "re"),
+  multiple_locations ~ s(day_of_year, bs = "cc") + s(tl) + release_location,
   family = binomial(link = "logit"),
   data = daily_movements,
   correlation = corAR1(form = ~ day_of_year | transmitter_id),
-  method = "REML")
+  method = "ML")
 
-gamm_2<- gamm(
-  multiple_locations ~ s(day_of_year, bs = "cc") + tl + s(release_location, bs= "re"),
+gamm_2 <- gamm(
+  multiple_locations ~ s(day_of_year, bs = "cc") + s(tl) + release_location,
   family = binomial(link = "logit"),
   data = daily_movements,
-  correlation = corAR1(form = ~ day_of_year | transmitter_id,),
-  method = "REML")
+  random = list(transmitter_id = ~1),
+  method = "ML")
 
-gamm_3<- gamm(
-  multiple_locations ~ s(day_of_year, bs = "cc") + tl, 
+gamm_3 <- gamm(
+  multiple_locations ~ s(day_of_year, bs = "cc") + s(tl) + release_location,
   family = binomial(link = "logit"),
   data = daily_movements,
   correlation = corAR1(form = ~ day_of_year | transmitter_id),
-  method = "REML"
+  random = list(transmitter_id = ~1),
+  method = "ML")
+
+AICtab(gamm_0$lme, gamm_1$lme, gamm_2$lme, gamm_3$lme)
+
+#Move forward with top model with both AR1 term and random effects
+gamm_3a <- gamm(
+  multiple_locations ~ s(day_of_year, bs = "cc") + s(tl) + release_location,
+  family = binomial(link = "logit"),
+  data = daily_movements,
+  correlation = corAR1(form = ~ day_of_year | transmitter_id),
+  random = list(transmitter_id = ~1),
+  method = "ML")
+
+gamm_3b <- gamm(
+  multiple_locations ~ s(day_of_year, bs = "cc") + tl + release_location, 
+  family = binomial(link = "logit"),
+  data = daily_movements,
+  correlation = corAR1(form = ~ day_of_year | transmitter_id),
+  random = list(transmitter_id = ~1),
+  method = "ML"
 )
 
-gamm_4<- gamm(
-  multiple_locations ~ s(day_of_year, bs = "cc") + s(release_location, bs= "re"),
+gamm_3c <- gamm(
+  multiple_locations ~ s(day_of_year, bs = "cc") + release_location,
   family = binomial(link = "logit"),
   data = daily_movements,
   correlation = corAR1(form = ~ day_of_year | transmitter_id),
-  method = "REML"
+  random = list(transmitter_id = ~1),
+  method = "ML"
 )
 
-gamm_5<- gamm(
+gamm_3d <- gamm(
   multiple_locations ~ s(day_of_year, bs = "cc"),
   family = binomial(link = "logit"),
   data = daily_movements,
   correlation = corAR1(form = ~ day_of_year | transmitter_id),
-  method = "REML"
+  random = list(transmitter_id = ~1),
+  method = "ML"
 )
 
+AICtab(gamm_3a$lme, gamm_3b$lme, gamm_3c$lme, gamm_3d$lme, 
+       nobs = nrow(daily_movements), weights = TRUE)
 
+summary(gamm_3c$gam)
+summary(gamm_3c$lme)
 
-model_list <- list(
-  model_1 = gamm_1,
-  model_2= gamm_2,
-  model_3= gamm_3,
-  model_4= gamm_4, 
-  model_5= gamm_5
+#While 3c is a slightly better fit, release_location is non-significant and AIC is within 2, 
+#Therefore gamm_3d is top model
+summary(gamm_3d$gam)
+summary(gamm_3d$lme)
+# ranef(gamm_3d$lme)
+gam.check(gamm_3d$gam)
+draw(gamm_3d$gam)
+
+###### Plot Predicted Lake-Creek Detection Probability ######
+new_data <- tibble(
+  day_of_year = 1:366,
+  # tl = median(daily_movements$tl, na.rm = TRUE),
+  transmitter_id = levels(daily_movements$transmitter_id)[1],
+  # release_location = levels(daily_movements$release_location)[1],
+  active_tags = rep(1, 366)
 )
 
-# AIC comparison
-map_dbl(model_list, function(model) {
-  if ("lme" %in% names(model) && !is.null(model$lme)) {
-    AIC(model$lme)
-  } else {
-    AIC(model$gam)
-  }
-}) %>% sort()
+pred <- predict(gamm_3d$gam, newdata = new_data, type = "link", se.fit = TRUE)
 
-
-names(model_list) <- paste0("gamm_", 1:5)
-
-# Model formulas
-formulas <- c(
-  "~ s(day_of_year) + s(tl) + s(release_location) + AR1",
-  "~ s(day_of_year) + tl + s(release_location) + AR1",
-  "~ s(day_of_year) + tl + AR1",
-  "~ s(day_of_year) + s(release_location) + AR1",
-  "~ s(day_of_year) + AR1"
-)
-
-# Extract metrics
-metrics_df <- map_dfr(model_list, function(model) {
-  tibble(
-    AIC = AIC(model$lme),
-    r.squ = summary(model$gam)$r.sq * 100,
-    total_edf = sum(summary(model$gam)$s.table[, "edf"])
+new_data <- new_data %>%
+  mutate(
+    fit_link = pred$fit,
+    lower_CI = plogis(fit_link - 1.96 * pred$se.fit),
+    upper_CI = plogis(fit_link + 1.96 * pred$se.fit),
+    predicted_prob = plogis(fit_link),
+    doy_rotated = (day_of_year - 79) %% 365 + 1
   )
-})
 
-# Build final summary table
-model_comparison <- tibble(
-  model = names(model_list),
-  formula = formulas,
-  AIC = round(metrics_df$AIC, 2),
-  r.squ = round(metrics_df$r.squ, 2),
-  total_edf = round(metrics_df$total_edf, 2)
-)
+true_doy_labels <- (seq(0, 360, by = 30) + 79 - 1) %% 365 + 1
 
-# Save
-write.csv(model_comparison, "GAMM_model_comparison.csv")
+gg_gam <- ggplot(new_data, aes(x = doy_rotated, y = predicted_prob)) +
+  geom_line(linewidth = 1.1, color = "black") +
+  geom_ribbon(aes(ymin = lower_CI, ymax = upper_CI), alpha = 0.2, fill = "gray50") +
+  geom_vline(xintercept = c(94, 186, 277), linetype = "dashed", color = "black", linewidth = 0.4) +
+  scale_x_continuous(
+    name = "Julian Day",
+    breaks = seq(0, 360, by = 30),
+    labels = true_doy_labels
+  ) +
+  labs(y = "Prob. of Lake-Creek Detection") +
+  theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_line(colour = "black"),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    plot.margin = unit(c(0.3, 0.3, 1.2, 0.3), "cm"),
+    axis.title.x = element_text(vjust = -1.5)
+  ) +
+  ylim(0, 0.8)
 
+gg_gam
 
-#### BEST MODEL ####
-summary(gamm_5$gam)
+# ggsave(file.path(file_path, "Figures/figure_4.jpg"), plot = gg_gam, width = 8.5, height = 4.5, dpi = 600, bg = 'transparent')
 
-###### Plot predictions ######
-plot_gamm_predictions <- function(gamm_model, daily_movements, output_path = NULL) {
-  new_data <- tibble(
-    day_of_year = 1:366,
-    tl = median(daily_movements$tl, na.rm = TRUE),
-    transmitter_id = levels(daily_movements$transmitter_id)[1],
-    release_location = levels(daily_movements$release_location)[1],
-    active_tags = rep(1, 366)
-  )
-  pred <- predict(gamm_model$gam, newdata = new_data, type = "link", se.fit = TRUE)
-  new_data <- new_data %>%
-    mutate(
-      fit_link = pred$fit,
-      lower_CI = plogis(fit_link - 1.96 * pred$se.fit),
-      upper_CI = plogis(fit_link + 1.96 * pred$se.fit),
-      predicted_prob = plogis(fit_link),
-      doy_rotated = (day_of_year - 79) %% 365 + 1
-    )
-  true_doy_labels <- (seq(0, 360, by = 30) + 79 - 1) %% 365 + 1
-  p <- ggplot(new_data, aes(x = doy_rotated, y = predicted_prob)) +
-    geom_line(size = 1.1, color = "black") +
-    geom_ribbon(aes(ymin = lower_CI, ymax = upper_CI), alpha = 0.2, fill = "gray50") +
-    geom_vline(xintercept = c(94, 186, 277), linetype = "dashed", color = "black", linewidth = 0.4) +
-    scale_x_continuous(
-      name = "Julian Day",
-      breaks = seq(0, 360, by = 30),
-      labels = true_doy_labels
-    ) +
-    labs(y = "Prob. of Lake-Creek Detection") +
-    theme(
-      panel.background = element_blank(),
-      panel.grid = element_blank(),
-      axis.line = element_line(colour = "black"),
-      axis.title = element_text(size = 16),
-      axis.text = element_text(size = 14),
-      plot.margin = unit(c(0.3, 0.3, 1.2, 0.3), "cm"),
-      axis.title.x = element_text(vjust = -1.5)
-    ) +
-    ylim(0, 0.8)
-  
-  if (!is.null(output_path)) {
-    ggsave(output_path, p, width = 8.5, height = 4.5, dpi = 300, bg = "transparent")
-  } else {
-    return(p)
-  }
-}
+##### Model Diagnostics #####
+k.check(gamm_3d$gam)
+gam.check(gamm_3d$gam)
 
-plot_gamm <- plot_gamm_predictions(gamm_5, daily_movements)
+#Look at Normalized residuals from the LME component (accounts for AR1)
+resids_normalized <- residuals(gamm_3d$lme, type = "normalized")
 
-plot_gamm
-
-plot(gamm_5$gam)
-
-##### Model Diagnostics
-
-k.check(gamm_5$gam)
-gam.check(gamm_5$gam)
-
-
-# Normalized residuals from the LME component (accounts for AR1)
-resids_normalized <- residuals(gamm_5$lme, type = "normalized")
-
-par(mfrow = c(1, 2))
+#uncorrected
+acf(residuals(gamm_3d$lme))
+#corrected with AR1
 acf(resids_normalized,  main = "ACF - Normalized Residuals")
-pacf(resids_normalized, main = "pACF - Normalized Residuals")
-
-# Compare to raw residuals (should show more autocorrelation)
-resids_raw <- residuals(gamm_5$lme, type = "response")
-acf(resids_raw,  main = "ACF - Raw Residuals")
-pacf(resids_raw, main = "pACF - Raw Residuals")
-
-concurvity(gamm_5$gam, full = TRUE)   # each term vs. rest of model
-concurvity(gamm_5$gam, full = FALSE)  # pairwise between terms
 
 
-daily_movements$resid <- residuals(gamm_5$gam, type = "deviance")
-
-ggplot(daily_movements, aes(x = transmitter_id, y = resid)) +
-  geom_boxplot() +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-  theme_classic() +
-  labs(x = "Transmitter ID", y = "Deviance Residuals",
-       title = "Residuals by Individual")
-
-# Full prediction grid across all 366 days
+##### Look at various summary stats, seasonal max min probabilities ####
+#Full prediction grid across all 366 days
 new_data <- tibble(
   day_of_year = 1:366,
   tl = median(daily_movements$tl, na.rm = TRUE),
@@ -319,9 +279,9 @@ new_data <- tibble(
 )
 
 # Get predictions
-pred <- predict(gamm_5$gam, newdata = new_data, type = "link", se.fit = TRUE)
+pred <- predict(gamm_3d$gam, newdata = new_data, type = "link", se.fit = TRUE)
 
-# Convert to probabilities with CIs
+#Convert to probabilities with CIs
 full_pred <- new_data %>%
   mutate(
     fit_link = pred$fit,
@@ -333,7 +293,7 @@ full_pred <- new_data %>%
     prob_upper = plogis(upper_link)
   )
 
-# Find peak (max prob)
+#Find peak (max prob)
 peak <- full_pred[which.max(full_pred$prob), ]
 cat("Peak probability:\n")
 cat(sprintf("Day %d: %.3f (95%% CI: %.3f–%.3f)\n", 
@@ -362,4 +322,3 @@ cat("Fall peak (days 270-320):\n")
 cat(sprintf("Day %d: %.3f (95%% CI: %.3f–%.3f)\n", 
             fall_peak$day_of_year, fall_peak$prob, fall_peak$prob_upper, fall_peak$prob_lower))
 
-sessionInfo()
