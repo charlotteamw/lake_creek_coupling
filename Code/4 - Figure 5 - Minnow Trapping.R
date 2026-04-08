@@ -103,7 +103,7 @@ plot_cpue <- ggplot(df_emm_cpue, aes(x = Month, y = emmean, group = Location)) +
   ) +
   geom_point(
     aes(fill = Location),
-    size = 6, shape = 21, color = "#323332", stroke = 0.6,
+    size = 3.5, shape = 21, color = "#323332", stroke = 0.6,
     position = position_dodge(width = 0.4)
   ) +
   scale_fill_manual(
@@ -186,7 +186,7 @@ plot_flux <- ggplot(df_emm_flux, aes(x = season, y = emmean, group = direction))
   ) +
   geom_point(
     aes(fill = direction),
-    size = 6, shape = 21, color = "#323332", stroke = 0.6,
+    size = 3.5, shape = 21, color = "#323332", stroke = 0.6,
     position = position_dodge(width = 0.4)
   ) +
   scale_fill_manual(
@@ -210,7 +210,7 @@ plot_flux <- ggplot(df_emm_flux, aes(x = season, y = emmean, group = direction))
   ) +
   coord_cartesian(clip = "off") +
   guides(fill = guide_legend(
-    override.aes = list(shape = 21, size = 6, color = "#323332", stroke = 0.6)
+    override.aes = list(shape = 21, size = 3.5, color = "#323332", stroke = 0.6)
   ))
 
 plot_flux
