@@ -28,7 +28,7 @@ source(file.path(file_path, "/Code/0 - Functions.R"))
 detections_file <- file.path(file_path, "Data/detections_clean_alldata.csv")
 dets <- read_csv(detections_file)
 
-transmitters_to_remove <- c("34905", "32999", "42348")
+transmitters_to_remove <- c("34905", "32999")
 recs_to_remove         <- c("R018", "R017", "R016")
 
 dets <- dets %>%
@@ -127,7 +127,7 @@ daily_movements <- daily_movements %>%
 str(daily_movements)
 
 ###### GAM Models ######
-#Test incorporation of autocorrelation term and random effects for individuals
+#Test incorporation of autocorrelation term
 gamm_0 <- gamm(
   multiple_locations ~ s(day_of_year, bs = "cc") + s(tl) + release_location,
   family = binomial(link = "logit"),
@@ -157,6 +157,70 @@ gamm_3 <- gamm(
   method = "ML")
 
 AICtab(gamm_0$lme, gamm_1$lme, gamm_2$lme, gamm_3$lme)
+
+
+
+library(dplyr)
+library(purrr)
+library(tibble)
+
+extract_gamm_table <- function(..., model_names = NULL, digits = 3) {
+  mods <- list(...)
+  
+  if (is.null(model_names)) {
+    model_names <- as.character(match.call(expand.dots = FALSE)$...)
+  }
+  
+  stopifnot(length(mods) == length(model_names))
+  
+  out <- map2_dfr(mods, model_names, function(m, nm) {
+    
+    lme_obj <- m$lme
+    gam_obj <- m$gam
+    
+    ll  <- as.numeric(logLik(lme_obj))
+    k   <- attr(logLik(lme_obj), "df")
+    n   <- nobs(lme_obj)
+    aic <- AIC(lme_obj)
+    bic <- BIC(lme_obj)
+    
+    has_ar1 <- !is.null(lme_obj$modelStruct$corStruct)
+    has_re  <- !is.null(lme_obj$modelStruct$reStruct)
+    
+    tibble(
+      model = nm,
+      formula = Reduce(paste, deparse(formula(gam_obj))),
+      df = k,
+      logLik = ll,
+      AIC = aic,
+      BIC = bic,
+      n = n,
+      AR1 = has_ar1,
+      random_effect = has_re
+    )
+  })
+  
+  out <- out %>%
+    arrange(AIC) %>%
+    mutate(
+      delta_AIC = AIC - min(AIC),
+      AIC_weight = exp(-0.5 * delta_AIC) / sum(exp(-0.5 * delta_AIC))
+    ) %>%
+    mutate(
+      across(where(is.numeric), ~ round(.x, digits))
+    )
+  
+  out
+}
+
+comp_autocor <- extract_gamm_table(
+  gamm_0, gamm_1, gamm_2, gamm_3,
+  model_names = c("gamm_0", "gamm_1", "gamm_2", "gamm_3")
+)
+
+comp_autocor
+write.csv(comp_autocor, "Results/gamm_autocorrelation_model_comparison.csv", row.names = FALSE)
+
 
 #Move forward with top model with both AR1 term and random effects
 gamm_3a <- gamm(
@@ -197,8 +261,42 @@ gamm_3d <- gamm(
 AICtab(gamm_3a$lme, gamm_3b$lme, gamm_3c$lme, gamm_3d$lme, 
        nobs = nrow(daily_movements), weights = TRUE)
 
+comp_candidates <- extract_gamm_table(
+  gamm_3a, gamm_3b, gamm_3c, gamm_3d,
+  model_names = c("gamm_3a", "gamm_3b", "gamm_3c", "gamm_3d")
+)
+
+comp_candidates
+write.csv(comp_candidates, "Results/gamm_candidate_model_comparison.csv", row.names = FALSE)
+comp_candidates <- extract_gamm_table(
+  gamm_3a, gamm_3b, gamm_3c, gamm_3d,
+  model_names = c(
+    "s(day_of_year) + s(tl) + release_location",
+    "s(day_of_year) + tl + release_location",
+    "s(day_of_year) + release_location",
+    "s(day_of_year)"
+  )
+)
+
+comp_candidates
+
+
 summary(gamm_3c$gam)
 summary(gamm_3c$lme)
+
+
+comp_candidates_pub <- comp_candidates %>%
+  transmute(
+    Model = model,
+    `K` = df,
+    `logLik` = logLik,
+    `AIC` = AIC,
+    `ΔAIC` = delta_AIC,
+    Weight = AIC_weight
+  )
+
+comp_candidates_pub
+
 
 #While 3c is a slightly better fit, release_location is non-significant and AIC is within 2, 
 #Therefore gamm_3d is top model
@@ -253,7 +351,7 @@ gg_gam <- ggplot(new_data, aes(x = doy_rotated, y = predicted_prob)) +
 
 gg_gam
 
-# ggsave(file.path(file_path, "Figures/figure_4.jpg"), plot = gg_gam, width = 8.5, height = 4.5, dpi = 600, bg = 'transparent')
+ggsave(file.path(file_path, "Figures/figure_4.jpg"), plot = gg_gam, width = 8.5, height = 4.5, dpi = 600, bg = 'transparent')
 
 ##### Model Diagnostics #####
 k.check(gamm_3d$gam)

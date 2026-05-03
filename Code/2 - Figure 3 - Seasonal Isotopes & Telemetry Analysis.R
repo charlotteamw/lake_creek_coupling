@@ -1,9 +1,16 @@
-# Code to create Figure 3 of Manuscript - Comparing Seasonal Differences in Isotopes and Telemetry
+# =============================================================================
+# Figures 3 & 4 — Seasonal Comparisons: Stable Isotopes & Telemetry
+# Authors: Charlotte Ward & Reilly O'Connor
+# Updated: 2026-04-14
+# Description: Models and plots comparing seasonal patterns in shiner isotope
+#              composition (habitat coupling, trophic position) and telemetry-based
+#              habitat residency and recurrence, plus separate TL panels.
+# =============================================================================
 
-# Author(s): Charlotte Ward & Reilly O'Connor
-# Version: 2026-03-16
+# =============================================================================
+# 1. SETUP
+# =============================================================================
 
-# Load packages
 library(tidyverse)
 library(lubridate)
 library(purrr)
@@ -16,68 +23,92 @@ library(glmmTMB)
 library(DHARMa)
 
 file_path <- getwd()
+source(file.path(file_path, "Code/0 - Functions.R"))
 
-source(file.path(file_path, "/Code/0 - Functions.R"))
-
-# Type III tests require sum-to-zero contrasts
 options(contrasts = c("contr.sum", "contr.poly"))
 
-##### Set plot themes & Colours #####
-custom_theme <- 
-  theme_bw() +
-  theme(
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    legend.position = "right",
-    legend.title = element_text(size = 12),
-    legend.text = element_text(size = 11),
-    axis.title = element_text(size = 14),
-    axis.text.x = element_text(size = 14),
-    axis.text.y = element_text(size = 12)
-  ) 
+ensure_numeric <- function(x) suppressWarnings(as.numeric(as.character(x)))
 
+custom_theme <- theme_bw() +
+  theme(
+    panel.grid      = element_blank(),
+    axis.line       = element_line(color = "black"),
+    legend.position = "right",
+    legend.title    = element_text(size = 12),
+    legend.text     = element_text(size = 11),
+    axis.title      = element_text(size = 14),
+    axis.text.x     = element_text(size = 14),
+    axis.text.y     = element_text(size = 12)
+  )
 
 fill_scheme <- c("creek" = "#F06C57", "lake" = "#4A90B8")
+season_levels <- c("Spring", "Summer", "Fall")
+month_levels  <- c("may", "august", "october")
+month_labels  <- c("Spring", "Summer", "Fall")
 
+legend_override <- guide_legend(
+  override.aes = list(shape = 21, size = 3, color = "#323332", stroke = 0.6)
+)
 
-##### Set Up Isotope Data, summarize mean, se... #####
-isotope_data <- read.csv(file.path(file_path, "Data/iso_metadata.csv"), header = T)
+make_bottom_legend <- function(plot_obj) {
+  get_legend(
+    plot_obj + theme(
+      legend.position = "bottom",
+      legend.title    = element_text(size = 12),
+      legend.text     = element_text(size = 12)
+    )
+  )
+}
+
+# keep beta-family responses away from exact 0/1
+adjust_beta_response <- function(x) {
+  n_obs <- sum(!is.na(x))
+  if (n_obs <= 1) return(x)
+  (x * (n_obs - 1) + 0.5) / n_obs
+}
+
+# =============================================================================
+# 2. ISOTOPE DATA — LOAD & PROCESS
+# =============================================================================
+
+isotope_data <- read.csv(file.path(file_path, "Data/iso_metadata.csv"), header = TRUE)
 
 shiner_species <- c("golden shiner", "common shiner")
 
 shiners_liver <- calculate_prop_tp(isotope_data, shiner_species, "liver") %>%
   distinct() %>%
   mutate(
+    tl               = ensure_numeric(tl),
+    location         = factor(location, levels = c("creek", "lake")),
+    month            = factor(month, levels = month_levels, labels = month_labels),
+    habitat_coupling = (0.5 - abs(lake_carbon - 0.5))/2
+  ) %>%
+  mutate(
+    lake_carbon_adj      = adjust_beta_response(lake_carbon)
+  )
+
+shiners_raw <- isotope_data %>%
+  filter(organism %in% shiner_species, tissue == "liver") %>%
+  mutate(
+    tl       = ensure_numeric(tl),
     location = factor(location, levels = c("creek", "lake")),
-    month    = factor(
-      month,
-      levels = c("may", "august", "october"),
-      labels = c("Spring", "Summer", "Fall")
-    )
+    month    = factor(month, levels = month_levels, labels = month_labels)
   )
 
-shiners_summary <- shiners_liver %>%
-  group_by(month, location) %>%
-  summarise(
-    avg_lake_carbon = mean(lake_carbon,      na.rm = TRUE),
-    se_lake_carbon  = standard_error(lake_carbon),
-    avg_tp          = mean(trophic_position, na.rm = TRUE),
-    se_tp           = standard_error(trophic_position),
-    .groups         = "drop"
-  )
+# =============================================================================
+# 3. BASELINE ISOTOPES — SUMMARY & MODELS
+# =============================================================================
 
-
-##### Baselines Summary and Models #####
 mayfly_stats <- isotope_data %>%
   filter(organism == "mayfly") %>%
   group_by(location, month) %>%
   summarise(
     n         = n(),
     mean_d13C = round(mean(d13C_kilj, na.rm = TRUE), 2),
-    sd_d13C   = round(sd(d13C_kilj,   na.rm = TRUE), 2),
-    mean_d15N = round(mean(d15N,      na.rm = TRUE), 2),
-    sd_d15N   = round(sd(d15N,        na.rm = TRUE), 2),
-    .groups   = "drop"
+    sd_d13C   = round(sd(d13C_kilj, na.rm = TRUE), 2),
+    mean_d15N = round(mean(d15N, na.rm = TRUE), 2),
+    sd_d15N   = round(sd(d15N, na.rm = TRUE), 2),
+    .groups = "drop"
   )
 cat("\n--- Mayfly isotopes by location ---\n")
 print(mayfly_stats)
@@ -88,148 +119,71 @@ mussel_stats <- isotope_data %>%
   summarise(
     n         = n(),
     mean_d13C = round(mean(d13C_kilj, na.rm = TRUE), 2),
-    sd_d13C   = round(sd(d13C_kilj,   na.rm = TRUE), 2),
-    mean_d15N = round(mean(d15N,      na.rm = TRUE), 2),
-    sd_d15N   = round(sd(d15N,        na.rm = TRUE), 2),
-    .groups   = "drop"
+    sd_d13C   = round(sd(d13C_kilj, na.rm = TRUE), 2),
+    mean_d15N = round(mean(d15N, na.rm = TRUE), 2),
+    sd_d15N   = round(sd(d15N, na.rm = TRUE), 2),
+    .groups = "drop"
   )
 cat("\n--- Mussel isotopes by location ---\n")
 print(mussel_stats)
 
-
-#set up data for model, including mayfly and mussel...
 baseline_data <- isotope_data %>%
   filter(organism %in% c("mayfly", "mussel")) %>%
   mutate(
     location = factor(location, levels = c("creek", "lake")),
-    month = factor(
-      month,
-      levels = c("may", "august", "october"),
-      labels = c("Spring", "Summer", "Fall")
-    )
+    month    = factor(month, levels = month_levels, labels = month_labels)
   )
 
-##### Mayfly C13 N15 Models #####
-baseline_data_mf <- baseline_data %>% filter(organism == "mayfly")
+baseline_mf <- filter(baseline_data, organism == "mayfly")
+baseline_muss <- filter(baseline_data, organism == "mussel")
 
-glm_d13C_mf <- glm(
-  d13C_kilj ~ month * location,
-  data = baseline_data_mf,
-  family = gaussian()
+glm_d13C_mf <- glm(d13C_kilj ~ month * location, data = baseline_mf, family = gaussian())
+d13C_anova_mf <- as.data.frame(Anova(glm_d13C_mf, type = 3))
+d13C_contrasts_mf <- as.data.frame(
+  pairs(emmeans(glm_d13C_mf, ~ month * location, type = "response"))
 )
 
-car::Anova(glm_d13C_mf, type = 3)
-
-emmeans(glm_d13C_mf, ~ month * location, type = "response")
-
-pairs(emmeans(glm_d13C_mf, ~ month | location, type = "response"), adjust = "tukey")
-
-pairs(emmeans(glm_d13C_mf, ~ location | month, type = "response"), adjust = "tukey")
-
-glm_d15N_mf <- glm(
-  d15N ~ month * location,
-  data = baseline_data_mf,
-  family = gaussian()
+glm_d15N_mf <- glm(d15N ~ month * location, data = baseline_mf, family = gaussian())
+d15N_anova_mf <- as.data.frame(Anova(glm_d15N_mf, type = 3))
+d15N_contrasts_mf <- as.data.frame(
+  pairs(emmeans(glm_d15N_mf, ~ month * location, type = "response"))
 )
 
-car::Anova(glm_d15N_mf, type = 3)
-
-emmeans(glm_d15N_mf, ~ month * location)
-
-pairs(emmeans(glm_d15N_mf, ~ month | location), adjust = "tukey")
-
-pairs(emmeans(glm_d15N_mf, ~ location | month), adjust = "tukey")
-
-
-##### Mussel C13 N15 Models #####
-baseline_data_muss <- baseline_data %>% filter(organism == "mussel")
-
-glm_d13C_muss <- glm(
-  d13C_kilj ~ month * location,
-  data = baseline_data_muss,
-  family = gaussian()
-)
-
-car::Anova(glm_d13C_muss, type = 3)
-
+glm_d13C_muss <- glm(d13C_kilj ~ month * location, data = baseline_muss, family = gaussian())
 glm_d13C_muss <- update(glm_d13C_muss, . ~ . - month:location)
+d13C_anova_muss <- as.data.frame(Anova(glm_d13C_muss, type = 2))
 
-pairs(emmeans(glm_d13C_muss, ~ month),    adjust = "tukey")  
-pairs(emmeans(glm_d13C_muss, ~ location), adjust = "tukey")
-
-glm_d15N_muss <- glm(
-  d15N ~ month * location,
-  data = baseline_data_muss,
-  family = gaussian()
-)
-
-car::Anova(glm_d15N_muss, type = 3)
-
+glm_d15N_muss <- glm(d15N ~ month * location, data = baseline_muss, family = gaussian())
 glm_d15N_muss <- update(glm_d15N_muss, . ~ . - month:location)
+d15N_anova_muss <- as.data.frame(Anova(glm_d15N_muss, type = 2))
 
-pairs(emmeans(glm_d15N_muss, ~ month),    adjust = "tukey")  
-pairs(emmeans(glm_d15N_muss, ~ location), adjust = "tukey")
+# =============================================================================
+# 4. SHINER ISOTOPE MODELS
+# =============================================================================
 
-
-##### Golden Shiner & Common Shiner (Shiner) Data set up #####
-shiner_iso_stats <- isotope_data %>%
-  filter(
-    organism %in% c("golden shiner", "common shiner"),
-    tissue == "liver"
-  ) %>%
-  group_by(organism, location) %>%
+shiner_iso_stats<- shiners_raw %>%
+  group_by(organism, location, month) %>%
   summarise(
     n         = n(),
     mean_d13C = round(mean(d13C_kilj, na.rm = TRUE), 2),
-    sd_d13C   = round(sd(d13C_kilj,   na.rm = TRUE), 2),
-    mean_d15N = round(mean(d15N,      na.rm = TRUE), 2),
-    sd_d15N   = round(sd(d15N,        na.rm = TRUE), 2),
-    .groups   = "drop"
+    sd_d13C   = round(sd(d13C_kilj, na.rm = TRUE), 2),
+    mean_d15N = round(mean(d15N, na.rm = TRUE), 2),
+    sd_d15N   = round(sd(d15N, na.rm = TRUE), 2),
+    .groups = "drop"
   )
 
-head(shiner_iso_stats)
-
-##### Shiner Raw C13 N15 Models #####
-shiners_raw <- isotope_data %>%
-  filter(
-    organism %in% c("golden shiner", "common shiner"),
-    tissue == "liver"
-  ) %>%
-  mutate(
-    location = factor(location, levels = c("creek", "lake")),
-    month    = factor(
-      month,
-      levels = c("may", "august", "october"),
-      labels = c("Spring", "Summer", "Fall")
-    )
-  ) #%>% 
-  # filter(tl >= 138)
-
-glm_d13C_shnr <- glm(
-  d13C_kilj ~ month * location,
-  data = shiners_raw,
-  family = gaussian()
+# Raw isotopes
+glm_d13C_shnr <- glm(d13C_kilj ~ month * location, data = shiners_raw, family = gaussian())
+d13C_anova <- as.data.frame(Anova(glm_d13C_shnr, type = 3))
+d13C_contrasts <- as.data.frame(
+  pairs(emmeans(glm_d13C_shnr, ~ month * location, type = "response"))
 )
 
-car::Anova(glm_d13C_shnr, type = 3)
-
-emmeans(glm_d13C_shnr, ~ month * location, type = "response")
-pairs(emmeans(glm_d13C_shnr, ~ month | location, type = "response"), adjust = "tukey")
-pairs(emmeans(glm_d13C_shnr, ~ location | month, type = "response"), adjust = "tukey")
-
-
-glm_d15N_shnr <- glm(
-  d15N ~ month * location,
-  data = shiners_raw,
-  family = gaussian()
+glm_d15N_shnr <- glm(d15N ~ month * location, data = shiners_raw, family = gaussian())
+d15N_anova <- as.data.frame(Anova(glm_d15N_shnr, type = 3))
+d15N_contrasts <- as.data.frame(
+  pairs(emmeans(glm_d15N_shnr, ~ month * location, type = "response"))
 )
-
-car::Anova(glm_d15N_shnr, type = 3)
-
-emmeans(glm_d15N_shnr, ~ month * location, type = "response")
-pairs(emmeans(glm_d15N_shnr, ~ month | location, type = "response"), adjust = "tukey")
-pairs(emmeans(glm_d15N_shnr, ~ location | month, type = "response"), adjust = "tukey")
-
 
 ##### Shiner Prop Lake Carbon & TP Models #####
 #use glmTMB for lake_carbon as proportion (0, 1)
@@ -241,13 +195,22 @@ glmb_carbon_shnr <- glmmTMB(
 
 car::Anova(glmb_carbon_shnr, type = 3)
 
+prop_carbon_anova <- Anova(glmb_carbon_shnr, type = 3) %>%
+  as.data.frame()
+
 emmeans(glmb_carbon_shnr, ~ month * location, type = "response")
 pairs(emmeans(glmb_carbon_shnr, ~ month | location, type = "response"), adjust = "tukey")
 pairs(emmeans(glmb_carbon_shnr, ~ location | month, type = "response"), adjust = "tukey")
 
 
+prop_carbon_contrasts <- pairs(emmeans(glmb_carbon_shnr, ~ month * location,
+                                       type = "response")) %>%
+  as.data.frame()
+
+
 sim_carb <- simulateResiduals(glmb_carbon_shnr)
 plot(sim_carb)
+
 testOutliers(sim_carb, type = "bootstrap", nBoot = 1000)
 
 glm_tp_shnr <- glm(
@@ -258,10 +221,15 @@ glm_tp_shnr <- glm(
 
 car::Anova(glm_tp_shnr, type = 3)
 
-emmeans(glm_tp_shnr, ~ month * location, type = "response")
-pairs(emmeans(glm_tp_shnr, ~ month | location, type = "response"), adjust = "tukey")
-pairs(emmeans(glm_tp_shnr, ~ location | month, type = "response"), adjust = "tukey")
+contrast(emmeans(glm_tp_shnr, ~ month * location, type = "response"))
 
+
+tp_contrasts <- pairs(emmeans(glm_tp_shnr, ~ month * location,
+                              type = "response")) %>%
+  as.data.frame()
+
+tp_anova <- Anova(glm_tp_shnr, type = 3) %>%
+  as.data.frame()
 
 sim_tp <- simulateResiduals(glm_tp_shnr)
 plot(sim_tp) 
@@ -320,27 +288,37 @@ for (seas in c("Spring", "Summer", "Fall")) {
   cat(sprintf("  %s - lake minus creek: Δ = %+.3f\n", seas, lk - cr))
 }
 
-##### Shiner Telemetry Data #####
-detections_file <- file.path(file_path, "Data/detections_clean_alldata.csv")
-dets <- read_csv(detections_file)
+# =============================================================================
+# 5. TELEMETRY DATA — LOAD & PROCESS
+# =============================================================================
 
-#Remove Dead Fish and receivers at Transition Boundary Edges, 
-transmitters_to_remove <- c("34905", "32999", "42348")
-recs_to_remove         <- c("R018", "R017", "R016")
+dets <- read_csv(
+  file.path(file_path, "Data/detections_clean_alldata.csv"),
+  show_col_types = FALSE
+)
+
+### remove fish assumed to have experienced post-release mortality
+transmitters_to_remove <- c("34905", "32999")
+
+### remove receivers in transition habitat
+recs_to_remove <- c("R018", "R017", "R016")
 
 dets <- dets %>%
-  filter(!transmitter_id %in% transmitters_to_remove) %>%
-  filter(!rec_ID %in% recs_to_remove) %>%
+  filter(
+    !transmitter_id %in% transmitters_to_remove,
+    !rec_ID %in% recs_to_remove
+  ) %>%
   mutate(
+    tl = ensure_numeric(tl),
     location = case_when(
       tolower(location) == "transition" ~ "creek",
-      TRUE ~ location
+      TRUE ~ tolower(location)
     )
   )
 
 dets <- dets %>%
   mutate(
-    step_time  = case_when(
+    step_time = case_when(
       step_number == 1 ~ step1_dur,
       step_number == 2 ~ step2_dur,
       step_number == 3 ~ step3_dur
@@ -350,14 +328,16 @@ dets <- dets %>%
       step_number == 2 ~ step1_dur,
       step_number == 3 ~ step1_dur + step2_dur
     ),
-    release_date        = as.Date(release_date),
-    tag_on_date         = release_date + days(time_delay),
-    tag_off_date        = tag_on_date  + days(step_time),
-    detection_date      = as.Date(detection_timestamp_utc),
-    detection_timestamp = as.POSIXct(detection_timestamp_utc, tz = "UTC"),
-    tag_on_date         = as.POSIXct(tag_on_date,  tz = "UTC"),
-    tag_off_date        = as.POSIXct(tag_off_date, tz = "UTC")
+    release_date = as.Date(release_date),
+    tag_on_date = as.POSIXct(release_date + days(time_delay), tz = "UTC"),
+    tag_off_date = as.POSIXct(release_date + days(time_delay) + days(step_time), tz = "UTC"),
+    detection_date = as.Date(detection_timestamp_utc),
+    detection_timestamp = as.POSIXct(detection_timestamp_utc, tz = "UTC")
   )
+
+tl_lookup <- dets %>%
+  distinct(id_time, tl) %>%
+  filter(!is.na(tl))
 
 detections_filtered <- dets %>%
   false_detections(tf = 3600, show_plot = FALSE) %>%
@@ -367,35 +347,28 @@ window_check <- detections_filtered %>%
   group_by(id_time) %>%
   summarise(
     first_det = min(detection_timestamp, na.rm = TRUE),
-    last_det  = max(detection_timestamp, na.rm = TRUE),
-    tag_on    = first(tag_on_date),
-    tag_off   = first(tag_off_date),
-    step_dur  = first(step_time),
-    .groups   = "drop"
+    last_det = max(detection_timestamp, na.rm = TRUE),
+    tag_on = first(tag_on_date),
+    tag_off = first(tag_off_date),
+    step_dur = first(step_time),
+    .groups = "drop"
   )
 
-
 invalid_id_times <- window_check %>%
-  filter(is.na(tag_on) | is.na(tag_off) | tag_off <= tag_on |
-           last_det < tag_on | first_det > tag_off)
-
-invalid_id_times %>%
-  dplyr::select(id_time, tag_on, tag_off, first_det, last_det, step_dur) %>%
-  print(n = Inf)
-
+  filter(
+    is.na(tag_on) | is.na(tag_off) | tag_off <= tag_on |
+      last_det < tag_on | first_det > tag_off
+  )
 
 if (nrow(invalid_id_times) > 0) {
-  message("\n--- Dropping ", nrow(invalid_id_times),
-          " id_time(s) with invalid/mismatched windows ---")
+  message("\n--- Dropping ", nrow(invalid_id_times), " id_time(s) with invalid/mismatched windows ---")
   invalid_id_times %>%
     dplyr::select(id_time, tag_on, tag_off, first_det, last_det, step_dur) %>%
     print(n = Inf)
 }
 
 detections_filtered <- detections_filtered %>%
-  filter(id_time %in% (window_check %>%
-                         filter(!id_time %in% invalid_id_times$id_time) %>%
-                         pull(id_time)))
+  filter(id_time %in% setdiff(window_check$id_time, invalid_id_times$id_time))
 
 id_times <- unique(detections_filtered$id_time)
 time_series_list <- purrr::map(id_times, ~ create_time_series(detections_filtered, .x))
@@ -405,7 +378,7 @@ time_series_list <- time_series_list[!sapply(time_series_list, is.null)]
 time_series_all <- bind_rows(time_series_list) %>%
   mutate(
     Month_Year = format(date_time, "%Y-%m"),
-    id_time    = ifelse(id_time == "1576142_3", "1576142_2", id_time)
+    id_time = ifelse(id_time == "1576142_3", "1576142_2", id_time)
   ) %>%
   filter(!(id_time == "1576142_2" & Month_Year < "2024-04")) %>%
   group_by(id_time) %>%
@@ -415,33 +388,44 @@ time_series_all <- bind_rows(time_series_list) %>%
 time_series_all <- time_series_all %>%
   mutate(
     Season = case_when(
-      (month(date_time) == 3 & day(date_time) >= 21) | month(date_time) == 4 |
-        month(date_time) == 5 | (month(date_time) == 6 & day(date_time) <= 20) ~ "Spring",
-      (month(date_time) == 6 & day(date_time) >= 21) | month(date_time) == 7 |
-        month(date_time) == 8 | (month(date_time) == 9 & day(date_time) <= 20) ~ "Summer",
-      (month(date_time) == 9 & day(date_time) >= 21) | month(date_time) == 10 |
-        month(date_time) == 11 | (month(date_time) == 12 & day(date_time) <= 20) ~ "Fall",
-      (month(date_time) == 12 & day(date_time) >= 21) | month(date_time) %in% c(1, 2) |
+      (month(date_time) == 3 & day(date_time) >= 21) |
+        month(date_time) %in% 4:5 |
+        (month(date_time) == 6 & day(date_time) <= 20) ~ "Spring",
+      (month(date_time) == 6 & day(date_time) >= 21) |
+        month(date_time) %in% 7:8 |
+        (month(date_time) == 9 & day(date_time) <= 20) ~ "Summer",
+      (month(date_time) == 9 & day(date_time) >= 21) |
+        month(date_time) %in% 10:11 |
+        (month(date_time) == 12 & day(date_time) <= 20) ~ "Fall",
+      (month(date_time) == 12 & day(date_time) >= 21) |
+        month(date_time) %in% 1:2 |
         (month(date_time) == 3 & day(date_time) <= 20) ~ "Winter",
       TRUE ~ NA_character_
     )
   )
 
-str(time_series_all)
+# =============================================================================
+# 6. TELEMETRY — RESIDENCY & RECURRENCE
+# =============================================================================
 
-##### Calculate Shiner Residency #####
-residency_seasonal <- time_series_all %>%
-  group_by(id_time, release_location, Season) %>%
+release_habitat_lookup <- time_series_all %>%
+  group_by(id_time) %>%
   summarise(
-    total_minutes   = sum(!is.na(location)),
-    lake_minutes    = sum(location == "lake",  na.rm = TRUE),
-    creek_minutes   = sum(location == "creek", na.rm = TRUE),
-    lake_residency  = ifelse(total_minutes > 0, lake_minutes / total_minutes, NA_real_),
-    creek_residency = ifelse(total_minutes > 0, creek_minutes / total_minutes, NA_real_),
-    .groups         = "drop"
+    target_habitat = first(na.omit(location)),
+    .groups = "drop"
   )
 
-##### Calculate Shiner Recurrence #####
+residency_seasonal <- time_series_all %>%
+  left_join(release_habitat_lookup, by = "id_time") %>%
+  group_by(id_time, Season, target_habitat) %>%
+  summarise(
+    total_minutes = sum(!is.na(location)),
+    habitat_minutes = sum(location == target_habitat, na.rm = TRUE),
+    habitat_residency = ifelse(total_minutes > 0, habitat_minutes / total_minutes, NA_real_),
+    .groups = "drop"
+  ) %>%
+  rename(release_location = target_habitat)
+
 recurrence_seasonal_list <- list()
 
 for (fish_id in unique(time_series_all$id_time)) {
@@ -449,38 +433,38 @@ for (fish_id in unique(time_series_all$id_time)) {
     filter(id_time == fish_id) %>%
     arrange(date_time)
   
-  fish_data$return_event        <- FALSE
+  fish_data$return_event <- FALSE
   fish_data$recurrence_interval <- NA_real_
   
-  first_loc <- fish_data %>%
+  target_habitat <- fish_data %>%
     filter(!is.na(location)) %>%
     slice(1) %>%
     pull(location)
   
-  if (length(first_loc) == 0 || is.na(first_loc)) {
+  if (length(target_habitat) == 0 || is.na(target_habitat)) {
     recurrence_seasonal_list[[fish_id]] <- fish_data
     next
   }
   
-  exited_target  <- FALSE
+  exited_target <- FALSE
   last_exit_time <- as.POSIXct(NA, origin = "1970-01-01", tz = "UTC")
   
   for (i in seq_len(nrow(fish_data))) {
-    this_loc  <- fish_data$location[i]
+    this_loc <- fish_data$location[i]
     this_time <- fish_data$date_time[i]
     
     if (is.na(this_loc)) next
     
-    if (this_loc != first_loc && !exited_target) {
-      exited_target  <- TRUE
+    if (this_loc != target_habitat && !exited_target) {
+      exited_target <- TRUE
       last_exit_time <- this_time
     }
     
-    if (this_loc == first_loc && exited_target) {
-      fish_data$return_event[i] <- TRUE
+    if (this_loc == target_habitat && exited_target) {
       interval <- as.numeric(difftime(this_time, last_exit_time, units = "mins"))
+      fish_data$return_event[i] <- TRUE
       fish_data$recurrence_interval[i] <- ifelse(interval > 0, interval, NA_real_)
-      exited_target  <- FALSE
+      exited_target <- FALSE
       last_exit_time <- as.POSIXct(NA, origin = "1970-01-01", tz = "UTC")
     }
   }
@@ -489,99 +473,131 @@ for (fish_id in unique(time_series_all$id_time)) {
 }
 
 recurrence_seasonal <- bind_rows(recurrence_seasonal_list) %>%
-  group_by(id_time, release_location, Season) %>%
+  left_join(release_habitat_lookup, by = "id_time") %>%
+  group_by(id_time, Season, target_habitat) %>%
   summarise(
-    total_returns            = sum(return_event,         na.rm = TRUE),
+    total_returns = sum(return_event, na.rm = TRUE),
     mean_recurrence_interval = mean(recurrence_interval, na.rm = TRUE),
-    .groups                  = "drop"
+    .groups = "drop"
+  ) %>%
+  rename(release_location = target_habitat)
+
+# =============================================================================
+# 7. TELEMETRY — FINAL DATASET
+# =============================================================================
+
+final_results <- recurrence_seasonal %>%
+  left_join(residency_seasonal, by = c("id_time", "Season", "release_location")) %>%
+  left_join(tl_lookup, by = "id_time") %>%
+  distinct(id_time, Season, .keep_all = TRUE) %>%
+  filter(
+    !is.na(Season), Season != "Winter",
+    !is.na(habitat_minutes), !is.na(total_minutes), total_minutes > 0,
+    !is.na(tl)
+  ) %>%
+  mutate(
+    tl = ensure_numeric(tl),
+    Season = factor(Season, levels = season_levels),
+    release_location = factor(release_location, levels = c("creek", "lake")),
+    season_loc = paste(Season, release_location, sep = "_"),
+    habitat_residency_adj = (habitat_residency * (total_minutes - 1) + 0.5) / total_minutes
   )
 
-##### Merge Telemetry & General Summary #####
-final_results <- recurrence_seasonal %>%
-  left_join(
-    residency_seasonal,
-    by = c("id_time", "Season", "release_location")
-  ) %>%
-  distinct(id_time, Season, .keep_all = TRUE) %>%
-  filter(!is.na(Season), Season != "Winter") %>%
-  mutate(
-    Season           = factor(Season, levels = c("Spring", "Summer", "Fall")),
-    release_location = factor(release_location, levels = c("creek", "lake")),
-    season_loc       = paste(Season, release_location, sep = "_")
-  ) %>%
-  filter(!is.na(lake_minutes), !is.na(total_minutes), total_minutes > 0)
-
-#Create adjusted lake residency to allow for beta regression
-n <- final_results$total_minutes
-final_results$lake_residency_adj <- (final_results$lake_residency * (n - 1) + 0.5) / n
+cat("\n--- TL coverage in telemetry data ---\n")
+cat("Rows missing TL:", sum(is.na(final_results$tl)), "\n")
+print(summary(final_results$tl))
 
 telemetry_summary <- final_results %>%
   group_by(Season, release_location) %>%
   summarise(
-    n                   = n(),
-    mean_lake_residency = round(mean(lake_residency, na.rm = TRUE), 3),
-    se_lake_residency   = round(standard_error(lake_residency), 3),
-    mean_recurrence     = round(mean(total_returns,  na.rm = TRUE), 1),
-    se_recurrence       = round(standard_error(total_returns), 1),
-    .groups             = "drop"
+    n = n(),
+    mean_habitat_residency = round(mean(habitat_residency, na.rm = TRUE), 3),
+    se_habitat_residency = round(standard_error(habitat_residency), 3),
+    mean_recurrence = round(mean(total_returns, na.rm = TRUE), 1),
+    se_recurrence = round(standard_error(total_returns), 1),
+    .groups = "drop"
   )
-cat("\n--- Telemetry summary by Season × Release Location ---\n")
+cat("\n--- Telemetry summary by Season × Release Habitat ---\n")
 print(telemetry_summary)
 
-##### Telemetry Models #####
-#Lake Residency - Binomial Family
+# =============================================================================
+# 8. TL MODELS — TL AS RESPONSE
+# =============================================================================
+
+glm_tl_iso <- glm(tl ~ month * location, data = shiners_liver, family = gaussian())
+tl_iso_anova <- as.data.frame(Anova(glm_tl_iso, type = 3))
+tl_iso_contrasts <- as.data.frame(
+  pairs(emmeans(glm_tl_iso, ~ month * location, type = "response"), adjust = "tukey")
+)
+
+emm_tl_iso <- emmeans(glm_tl_iso, ~ month * location, type = "response") %>%
+  as.data.frame() %>%
+  rename(est = emmean) %>%
+  mutate(lo = est - SE, hi = est + SE)
+
+glm_tl_tel <- glm(tl ~ Season + release_location, data = final_results, family = gaussian())
+tl_tel_anova <- as.data.frame(Anova(glm_tl_tel, type = 2))
+tl_tel_contrasts <- as.data.frame(
+  pairs(emmeans(glm_tl_tel, ~ Season * release_location, type = "response"), adjust = "tukey")
+)
+
+emm_tl_tel <- emmeans(glm_tl_tel, ~ Season * release_location, type = "response") %>%
+  as.data.frame() %>%
+  rename(est = emmean) %>%
+  mutate(lo = est - SE, hi = est + SE)
+
+# =============================================================================
+# 9. TELEMETRY RESPONSE MODELS
+# =============================================================================
+
 glm_residency <- glmmTMB(
-  lake_residency_adj ~ Season * release_location,
-  data   = final_results,
+  habitat_residency_adj ~ Season * release_location,
+  data = final_results,
   family = beta_family(link = "logit")
 )
-
 car::Anova(glm_residency, type = 3)
 glm_residency <- update(glm_residency, . ~ . - Season:release_location)
-car::Anova(glm_residency, type = 2)
+residency_anova <- as.data.frame(Anova(glm_residency, type = 2))
 
-# print_emm_pairs_tel(glm_residency)
 sim_residency <- simulateResiduals(glm_residency)
-plot(sim_residency) 
+plot(sim_residency)
 
-#Recurrence - Negative binomial family
 glm_recurrence <- glmmTMB(
   total_returns ~ Season * release_location,
-  data   = final_results,
+  data = final_results,
   family = nbinom2(link = "log")
 )
-
 car::Anova(glm_recurrence, type = 3)
 glm_recurrence <- update(glm_recurrence, . ~ . - Season:release_location)
-car::Anova(glm_recurrence, type = 2)
+recurrence_anova <- as.data.frame(Anova(glm_recurrence, type = 2))
 
 sim_recurrence <- simulateResiduals(glm_recurrence)
-plot(sim_recurrence) 
+plot(sim_recurrence)
 
-##### Figure 3 — Model estimated marginal means from emmeans() for plotting #####
-#3A - Lake Derived Carbon
+# =============================================================================
+# 10. ESTIMATED MARGINAL MEANS
+# =============================================================================
+
 emm_carbon <- emmeans(glmb_carbon_shnr, ~ month * location, type = "response") %>%
   as.data.frame() %>%
   rename(est = response) %>%
   mutate(lo = pmax(0, est - SE), hi = pmin(1, est + SE))
 
-#3B - Trophic position
 emm_tp <- emmeans(glm_tp_shnr, ~ month * location, type = "response") %>%
   as.data.frame() %>%
   rename(est = emmean) %>%
   mutate(lo = est - SE, hi = est + SE)
 
-#3C - Lake residency
 emm_residency <- emmeans(glm_residency, ~ Season * release_location, type = "response") %>%
   as.data.frame() %>%
   rename(est = response) %>%
   mutate(lo = pmax(0, est - SE), hi = pmin(1, est + SE))
 
-#3D - Recurrence
 emm_recurrence <- emmeans(glm_recurrence, ~ Season * release_location, type = "response") %>%
   as.data.frame() %>%
   rename(est = response) %>%
   mutate(lo = est - SE, hi = est + SE)
+
 
 ##### Figure 3 #####
 #3A - Lake Derived Carbon
@@ -589,15 +605,16 @@ plot_shiner_carbon <- ggplot(
   emm_carbon,
   aes(x = month, y = est, group = location)
 ) +
+  geom_line(alpha = 0.6) +
   geom_errorbar(
     aes(ymin = lo, ymax = hi),
     width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7,
-    position = position_dodge(width = 0.4)
+    # position = position_dodge(width = 0.4)
   ) +
   geom_point(
     aes(fill = location),
-    size = 3.5, shape = 21, color = "#323332", stroke = 0.6,
-    position = position_dodge(width = 0.4)
+    size = 2.8, shape = 21, color = "#323332", stroke = 0.6,
+    # position = position_dodge(width = 0.4)
   ) +
   scale_fill_manual(
     name = "Location",
@@ -617,15 +634,16 @@ plot_shiner_tp <- ggplot(
   emm_tp,
   aes(x = month, y = est, group = location)
 ) +
+  geom_line(alpha = 0.6) +
   geom_errorbar(
     aes(ymin = lo, ymax = hi),
     width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7,
-    position = position_dodge(width = 0.4)
+    # position = position_dodge(width = 0.4)
   ) +
   geom_point(
     aes(fill = location),
-    size = 3.5, shape = 21, color = "#323332", stroke = 0.6,
-    position = position_dodge(width = 0.4)
+    size = 2.8, shape = 21, color = "#323332", stroke = 0.6,
+    # position = position_dodge(width = 0.4)
   ) +
   scale_fill_manual(
     name = "Location",
@@ -640,48 +658,21 @@ plot_shiner_tp <- ggplot(
     override.aes = list(shape = 21, size = 3, color = "#323332", stroke = 0.6)
   ))
 
-#3C - Lake residency
-plot_residency <- ggplot(
-  emm_residency,
-  aes(x = Season, y = est, group = release_location)
-) +
-  geom_errorbar(
-    aes(ymin = lo, ymax = hi),
-    width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7,
-    position = position_dodge(width = 0.4)
-  ) +
-  geom_point(
-    aes(fill = release_location),
-    size = 3.5, shape = 21, color = "#323332", stroke = 0.6,
-    position = position_dodge(width = 0.4)
-  ) +
-  scale_fill_manual(
-    name = "Location",
-    values = fill_scheme,
-    breaks = c("creek", "lake"),
-    labels = c("Creek", "Lake")
-  ) +
-  labs(y = "Mean Lake Residency", x = NULL) +
-  scale_y_continuous(breaks = scales::pretty_breaks(), limits = c(0, 1)) +
-  custom_theme +
-  guides(fill = guide_legend(
-    override.aes = list(shape = 21, size = 3, color = "#323332", stroke = 0.6)
-  ))
-
-#3D - Recurrence
+#3C - Recurrence
 plot_recurrence <- ggplot(
   emm_recurrence,
   aes(x = Season, y = est, group = release_location)
 ) +
+  geom_line(alpha = 0.6) +
   geom_errorbar(
     aes(ymin = lo, ymax = hi),
     width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7,
-    position = position_dodge(width = 0.4)
+    # position = position_dodge(width = 0.4)
   ) +
   geom_point(
     aes(fill = release_location),
-    size = 3.5, shape = 21, color = "#323332", stroke = 0.6,
-    position = position_dodge(width = 0.4)
+    size = 2.8, shape = 21, color = "#323332", stroke = 0.6,
+    # position = position_dodge(width = 0.4)
   ) +
   scale_fill_manual(
     name = "Location",
@@ -690,11 +681,41 @@ plot_recurrence <- ggplot(
     labels = c("Creek", "Lake")
   ) +
   scale_y_continuous(breaks = scales::pretty_breaks()) +
-  labs(y = "Mean Habitat Recurrence", x = NULL) +
+  labs(y = "Habitat Recurrence", x = NULL) +
   custom_theme +
   guides(fill = guide_legend(
     override.aes = list(shape = 21, size = 3, color = "#323332", stroke = 0.6)
   ))
+
+#3D - Habitat residency
+plot_residency <- ggplot(
+  emm_residency,
+  aes(x = Season, y = est, group = release_location)
+) +
+  geom_line(alpha = 0.6) +
+  geom_errorbar(
+    aes(ymin = lo, ymax = hi),
+    width = 0.15, linewidth = 0.6, color = "#323332", alpha = 0.7,
+    # position = position_dodge(width = 0.4)
+  ) +
+  geom_point(
+    aes(fill = release_location),
+    size = 2.8, shape = 21, color = "#323332", stroke = 0.6,
+    # position = position_dodge(width = 0.4)
+  ) +
+  scale_fill_manual(
+    name = "Location",
+    values = fill_scheme,
+    breaks = c("creek", "lake"),
+    labels = c("Creek", "Lake")
+  ) +
+  labs(y = "Habitat Residency", x = NULL) +
+  scale_y_continuous(breaks = scales::pretty_breaks(), limits = c(0, 1)) +
+  custom_theme +
+  guides(fill = guide_legend(
+    override.aes = list(shape = 21, size = 3, color = "#323332", stroke = 0.6)
+  ))
+
 
 left_iso <- ggarrange(
   plot_shiner_carbon + theme(legend.position = "none"),
@@ -703,8 +724,8 @@ left_iso <- ggarrange(
 )
 
 right_tel <- ggarrange(
-  plot_residency  + theme(legend.position = "none"),
   plot_recurrence + theme(legend.position = "none"),
+  plot_residency  + theme(legend.position = "none"),
   ncol = 1, nrow = 2, align = "v"
 )
 
@@ -722,4 +743,4 @@ top_row <- ggarrange(left_iso, right_tel, ncol = 2)
 figure_3 <- ggarrange(top_row, legend_shared, ncol = 1, heights = c(10, 1))
 figure_3
 
-ggsave(file.path(file_path, "Figures/figure_3.jpg"), plot = figure_3, width = 8, height = 6.5, dpi = 600)
+ggsave(file.path(file_path, "Figures/figure_3.jpg"), plot = figure_3, width = 8, height = 7, dpi = 900)
