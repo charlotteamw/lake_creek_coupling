@@ -45,7 +45,7 @@ receiver_sf
 dets <- read_csv(file.path(file_path, "Data/detections_clean_alldata.csv"))
 
 # Remove specified transmitters
-transmitters_to_remove <- c("34905", "32999", "42348")
+transmitters_to_remove <- c("34905", "32999")
 detections_filtered <- dets %>%
   filter(!transmitter_id %in% transmitters_to_remove) %>%
   filter(!is.na(receiver_sn))
@@ -105,19 +105,19 @@ edges <- full.network$moves %>%
   st_sf(crs = 4326)
 
 # Load and process the isoscape
-GNIPData <- read.csv(file.path(file_path, "Data/baselines_coords_d13C.csv"))
+GNIPData <- read.csv(file.path(file_path, "Data/baselines_coords_d13C_2026.csv"))
 GNIPData$source_ID <- factor(paste("site", GNIPData$lat, GNIPData$long, GNIPData$elev, sep = "_"))
 
 GNIPData_agg <- prepsources(data = GNIPData,
-                            long_min = -78.50, long_max = -78.30,
-                            lat_min = 45.50, lat_max = 45.85)
+                            long_min = -78.38, long_max = -78.32,
+                            lat_min = 45.60, lat_max = 45.65)
 
 # Fit isotopic model
 ModelFit <- isofit(data = GNIPData_agg,
                    mean_model_fix = list(elev = FALSE, lat_abs = TRUE))
 
 # Define raster extent
-new_extent <- c(xmin = -78.50, xmax = -78.30, ymin = 45.50, ymax = 45.85)
+new_extent <- c(xmin = -78.38, xmax = -78.32, ymin = 45.60, ymax = 45.65)
 
 # Create raster template with correct resolution
 raster_template <- rast(

@@ -17,6 +17,7 @@ library(car)
 library(circlize)
 library(lubridate)
 library(glmmTMB)
+
 library(DHARMa)
 library(bbmle)
 
@@ -61,6 +62,7 @@ dets <- dets %>%
     tag_on_date         = as.POSIXct(tag_on_date,  tz = "UTC"),
     tag_off_date        = as.POSIXct(tag_off_date, tz = "UTC")
   )
+
 
 detections_filtered <- dets %>%
   false_detections(tf = 3600, show_plot = FALSE) %>%
@@ -223,47 +225,44 @@ write.csv(comp_autocor, "Results/gamm_autocorrelation_model_comparison.csv", row
 
 
 #Move forward with top model with both AR1 term and random effects
-gamm_3a <- gamm(
+gamm_1a <- gamm(
   multiple_locations ~ s(day_of_year, bs = "cc") + s(tl) + release_location,
   family = binomial(link = "logit"),
   data = daily_movements,
   correlation = corAR1(form = ~ day_of_year | transmitter_id),
-  random = list(transmitter_id = ~1),
   method = "ML")
 
-gamm_3b <- gamm(
+gamm_1b <- gamm(
   multiple_locations ~ s(day_of_year, bs = "cc") + tl + release_location, 
   family = binomial(link = "logit"),
   data = daily_movements,
   correlation = corAR1(form = ~ day_of_year | transmitter_id),
-  random = list(transmitter_id = ~1),
   method = "ML"
 )
 
-gamm_3c <- gamm(
+gamm_1c <- gamm(
   multiple_locations ~ s(day_of_year, bs = "cc") + release_location,
   family = binomial(link = "logit"),
   data = daily_movements,
   correlation = corAR1(form = ~ day_of_year | transmitter_id),
-  random = list(transmitter_id = ~1),
   method = "ML"
 )
 
-gamm_3d <- gamm(
+gamm_1d <- gamm(
   multiple_locations ~ s(day_of_year, bs = "cc"),
   family = binomial(link = "logit"),
   data = daily_movements,
   correlation = corAR1(form = ~ day_of_year | transmitter_id),
-  random = list(transmitter_id = ~1),
   method = "ML"
 )
 
-AICtab(gamm_3a$lme, gamm_3b$lme, gamm_3c$lme, gamm_3d$lme, 
+AICtab(gamm_1a$lme, gamm_1b$lme, gamm_1c$lme, gamm_1d$lme, 
        nobs = nrow(daily_movements), weights = TRUE)
+
 
 comp_candidates <- extract_gamm_table(
   gamm_3a, gamm_3b, gamm_3c, gamm_3d,
-  model_names = c("gamm_3a", "gamm_3b", "gamm_3c", "gamm_3d")
+  model_names = c("gamm_1a", "gamm_1b", "gamm_1c", "gamm_1d")
 )
 
 comp_candidates
@@ -281,9 +280,6 @@ comp_candidates <- extract_gamm_table(
 comp_candidates
 
 
-summary(gamm_3c$gam)
-summary(gamm_3c$lme)
-
 
 comp_candidates_pub <- comp_candidates %>%
   transmute(
@@ -298,13 +294,12 @@ comp_candidates_pub <- comp_candidates %>%
 comp_candidates_pub
 
 
-#While 3c is a slightly better fit, release_location is non-significant and AIC is within 2, 
-#Therefore gamm_3d is top model
-summary(gamm_3d$gam)
-summary(gamm_3d$lme)
-# ranef(gamm_3d$lme)
-gam.check(gamm_3d$gam)
-draw(gamm_3d$gam)
+# gamm_1d is top model
+summary(gamm_1d$gam)
+summary(gamm_1d$lme)
+# ranef(gamm_1d$lme)
+gam.check(gamm_1d$gam)
+draw(gamm_1d$gam)
 
 ###### Plot Predicted Lake-Creek Detection Probability ######
 new_data <- tibble(
@@ -315,7 +310,7 @@ new_data <- tibble(
   active_tags = rep(1, 366)
 )
 
-pred <- predict(gamm_3d$gam, newdata = new_data, type = "link", se.fit = TRUE)
+pred <- predict(gamm_1d$gam, newdata = new_data, type = "link", se.fit = TRUE)
 
 new_data <- new_data %>%
   mutate(
@@ -354,14 +349,14 @@ gg_gam
 ggsave(file.path(file_path, "Figures/figure_4.jpg"), plot = gg_gam, width = 8.5, height = 4.5, dpi = 600, bg = 'transparent')
 
 ##### Model Diagnostics #####
-k.check(gamm_3d$gam)
-gam.check(gamm_3d$gam)
+k.check(gamm_1d$gam)
+gam.check(gamm_1d$gam)
 
 #Look at Normalized residuals from the LME component (accounts for AR1)
-resids_normalized <- residuals(gamm_3d$lme, type = "normalized")
+resids_normalized <- residuals(gamm_1d$lme, type = "normalized")
 
 #uncorrected
-acf(residuals(gamm_3d$lme))
+acf(residuals(gamm_1d$lme))
 #corrected with AR1
 acf(resids_normalized,  main = "ACF - Normalized Residuals")
 
@@ -377,7 +372,7 @@ new_data <- tibble(
 )
 
 # Get predictions
-pred <- predict(gamm_3d$gam, newdata = new_data, type = "link", se.fit = TRUE)
+pred <- predict(gamm_1d$gam, newdata = new_data, type = "link", se.fit = TRUE)
 
 #Convert to probabilities with CIs
 full_pred <- new_data %>%
