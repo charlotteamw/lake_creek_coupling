@@ -1,6 +1,7 @@
 # =============================================================================
 # Figures 3 & 4 — Seasonal Comparisons: Stable Isotopes & Telemetry
-# Authors: Charlotte Ward & Reilly O'Connor
+
+
 # Updated: 2026-04-14
 # Description: Models and plots comparing seasonal patterns in shiner isotope
 #              composition (habitat coupling, trophic position) and telemetry-based

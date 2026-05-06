@@ -1,6 +1,5 @@
 # Functions used in this repository
 
-# Author(s): Charlotte Ward
 # Version: 2026-03-14
 
 #Calculate Standard Error

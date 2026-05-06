@@ -1,6 +1,6 @@
 # Supplementary Materials - Abaccus Plots
 
-# Author(s): Charlotte Ward & Reilly O'Connor
+
 # Version: 2026-03-16
 
 # Load Pkgs
